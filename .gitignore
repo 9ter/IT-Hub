@@ -1,0 +1,20 @@
+# Local config / secrets
+api/config.php
+admin.txt
+
+# Private data — do not publish
+sql/02_seed_assets.sql
+MEMORY.md
+
+# Uploads
+storage/uploads/*
+!storage/uploads/.gitkeep
+
+# Frontend build
+web/node_modules/
+web/dist/
+
+# Misc
+.DS_Store
+*.log
+.env
