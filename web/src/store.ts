@@ -60,6 +60,7 @@ export interface RequesterInfo {
   requester_dept: string
   requester_phone: string
   requester_email: string
+  position: string
 }
 
 export function savedRequester(): Partial<RequesterInfo> {

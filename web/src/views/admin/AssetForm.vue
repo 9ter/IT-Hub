@@ -67,7 +67,7 @@ const cls = (k: string) => ['input', errors.value[k] && 'input-error']
   <form v-if="loaded" class="card mt-6 max-w-3xl space-y-5 p-6" @submit.prevent="save">
     <div class="grid gap-4 sm:grid-cols-3">
       <div>
-        <label class="label" for="asset_code">หมายเลขทะเบียน <span class="text-red-500">*</span></label>
+        <label class="label" for="asset_code">หมายเลขทะเบียน <span class="text-red-500 dark:text-red-400">*</span></label>
         <input id="asset_code" v-model="f.asset_code" :class="[...cls('asset_code'), 'font-mono uppercase']" placeholder="MD-01-001" />
         <p v-if="errors.asset_code" class="field-error">{{ errors.asset_code }}</p>
       </div>
@@ -89,7 +89,7 @@ const cls = (k: string) => ['input', errors.value[k] && 'input-error']
 
     <div class="grid gap-4 sm:grid-cols-3">
       <div class="sm:col-span-2">
-        <label class="label" for="brand_model">ยี่ห้อ / รุ่น <span class="text-red-500">*</span></label>
+        <label class="label" for="brand_model">ยี่ห้อ / รุ่น <span class="text-red-500 dark:text-red-400">*</span></label>
         <input id="brand_model" v-model="f.brand_model" :class="cls('brand_model')" />
         <p v-if="errors.brand_model" class="field-error">{{ errors.brand_model }}</p>
       </div>
@@ -109,7 +109,7 @@ const cls = (k: string) => ['input', errors.value[k] && 'input-error']
       </div>
     </div>
 
-    <div class="grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3">
+    <div class="grid gap-4 border-t border-slate-100 dark:border-slate-700 pt-5 sm:grid-cols-3">
       <div>
         <label class="label" for="holder_name">ผู้ครอบครอง</label>
         <input id="holder_name" v-model="f.holder_name" class="input" />
@@ -117,7 +117,7 @@ const cls = (k: string) => ['input', errors.value[k] && 'input-error']
       <div>
         <label class="label" for="holder_nickname">ชื่อเล่น</label>
         <input id="holder_nickname" v-model="f.holder_nickname" class="input" />
-        <p class="mt-1 text-xs text-slate-500">แสดงบนหน้าสแกน QR</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">แสดงบนหน้าสแกน QR</p>
       </div>
       <div>
         <label class="label" for="department">หน่วยงานที่ใช้</label>
@@ -129,7 +129,7 @@ const cls = (k: string) => ['input', errors.value[k] && 'input-error']
       </div>
     </div>
 
-    <div class="grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
+    <div class="grid gap-4 border-t border-slate-100 dark:border-slate-700 pt-5 sm:grid-cols-2">
       <div>
         <label class="label" for="registered_at">วันที่ขึ้นทะเบียน</label>
         <input id="registered_at" v-model="f.registered_at" type="date" :class="cls('registered_at')" />
@@ -148,7 +148,7 @@ const cls = (k: string) => ['input', errors.value[k] && 'input-error']
       </div>
     </div>
 
-    <div class="flex justify-end gap-2 border-t border-slate-100 pt-5">
+    <div class="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-5">
       <button type="button" class="btn-secondary" @click="router.back()">ยกเลิก</button>
       <button class="btn-primary" :disabled="saving">{{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}</button>
     </div>

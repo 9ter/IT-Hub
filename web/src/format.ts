@@ -13,6 +13,12 @@ export function fmtDate(s: string | null | undefined): string {
   return s ? df.format(parse(s.length === 10 ? s + 'T00:00:00' : s)) : '-'
 }
 
+/** Numeric Buddhist-calendar date used on FM-IT printed forms (server time is Bangkok). */
+export function fmtFormDate(s: string | null | undefined): string {
+  const match = s?.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return match ? `${match[3]}/${match[2]}/${Number(match[1]) + 543}` : ''
+}
+
 export function timeAgo(s: string): string {
   const mins = Math.round((Date.now() - parse(s).getTime()) / 60000)
   if (mins < 1) return 'เมื่อสักครู่'
@@ -42,18 +48,18 @@ export function todayInput(): string {
 }
 
 export const statusTone: Record<TicketStatus, string> = {
-  new: 'bg-amber-100 text-amber-800 ring-amber-200',
-  accepted: 'bg-sky-100 text-sky-800 ring-sky-200',
-  in_progress: 'bg-blue-100 text-blue-800 ring-blue-200',
-  waiting: 'bg-violet-100 text-violet-800 ring-violet-200',
-  done: 'bg-emerald-100 text-emerald-800 ring-emerald-200',
-  rejected: 'bg-red-100 text-red-700 ring-red-200',
-  cancelled: 'bg-slate-100 text-slate-600 ring-slate-200',
+  new: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 ring-amber-200 dark:ring-amber-800',
+  accepted: 'bg-sky-100 dark:bg-sky-900/40 text-sky-800 dark:text-sky-300 ring-sky-200 dark:ring-sky-800',
+  in_progress: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 ring-blue-200 dark:ring-blue-800',
+  waiting: 'bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-300 ring-violet-200 dark:ring-violet-800',
+  done: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-800',
+  rejected: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-red-200 dark:ring-red-800',
+  cancelled: 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-700',
 }
 
 export const priorityTone: Record<Priority, string> = {
-  low: 'text-slate-500',
-  normal: 'text-slate-700',
-  high: 'text-orange-600 font-semibold',
-  urgent: 'text-red-600 font-bold',
+  low: 'text-slate-500 dark:text-slate-400',
+  normal: 'text-slate-700 dark:text-slate-200',
+  high: 'text-orange-600 dark:text-orange-400 font-semibold',
+  urgent: 'text-red-600 dark:text-red-400 font-bold',
 }

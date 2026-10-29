@@ -31,10 +31,10 @@ watch(
 )
 
 const assetStatusTone: Record<string, string> = {
-  active: 'bg-emerald-100 text-emerald-800',
-  repair: 'bg-amber-100 text-amber-800',
-  spare: 'bg-slate-100 text-slate-700',
-  retired: 'bg-red-100 text-red-700',
+  active: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300',
+  repair: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
+  spare: 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200',
+  retired: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
 }
 </script>
 
@@ -45,7 +45,7 @@ const assetStatusTone: Record<string, string> = {
     <div v-else-if="error" class="card p-8 text-center">
       <Icon name="search" :size="36" class="mx-auto text-slate-300" />
       <p class="mt-3 font-semibold">{{ error }}</p>
-      <p class="mt-1 text-sm text-slate-500">ตรวจสอบรหัสบนสติกเกอร์อีกครั้ง หรือแจ้งซ่อมโดยระบุอุปกรณ์เอง</p>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">ตรวจสอบรหัสบนสติกเกอร์อีกครั้ง หรือแจ้งซ่อมโดยระบุอุปกรณ์เอง</p>
       <RouterLink :to="{ name: 'request', params: { type: 'repair' } }" class="btn-primary mt-5"><Icon name="wrench" :size="18" /> แจ้งซ่อม</RouterLink>
     </div>
 
@@ -63,60 +63,60 @@ const assetStatusTone: Record<string, string> = {
         </div>
         <dl class="grid grid-cols-2 gap-x-4 gap-y-4 p-5 text-sm">
           <div>
-            <dt class="text-slate-500">ประเภท</dt>
+            <dt class="text-slate-500 dark:text-slate-400">ประเภท</dt>
             <dd class="mt-0.5 font-medium">{{ asset.category ?? '-' }}</dd>
           </div>
           <div>
-            <dt class="text-slate-500">บริษัท</dt>
+            <dt class="text-slate-500 dark:text-slate-400">บริษัท</dt>
             <dd class="mt-0.5 font-medium">{{ asset.company }}</dd>
           </div>
           <div>
-            <dt class="text-slate-500">ผู้ใช้งาน</dt>
+            <dt class="text-slate-500 dark:text-slate-400">ผู้ใช้งาน</dt>
             <dd class="mt-0.5 font-medium">{{ asset.holder_nickname ?? '-' }}</dd>
           </div>
           <div>
-            <dt class="text-slate-500">หน่วยงาน</dt>
+            <dt class="text-slate-500 dark:text-slate-400">หน่วยงาน</dt>
             <dd class="mt-0.5 font-medium">{{ asset.department ?? '-' }}</dd>
           </div>
           <div v-if="asset.location" class="col-span-2">
-            <dt class="text-slate-500">สถานที่</dt>
+            <dt class="text-slate-500 dark:text-slate-400">สถานที่</dt>
             <dd class="mt-0.5 font-medium">{{ asset.location }}</dd>
           </div>
         </dl>
       </section>
 
-      <section v-if="asset.open_tickets.length" class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-        <p class="flex items-center gap-2 text-sm font-semibold text-amber-900"><Icon name="clock" :size="16" /> เครื่องนี้มีงานที่กำลังดำเนินการ</p>
+      <section v-if="asset.open_tickets.length" class="mt-4 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/40 p-4">
+        <p class="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-300"><Icon name="clock" :size="16" /> เครื่องนี้มีงานที่กำลังดำเนินการ</p>
         <RouterLink
           v-for="t in asset.open_tickets"
           :key="t.ticket_no"
           :to="{ name: 'track', params: { no: t.ticket_no } }"
-          class="mt-2 flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-sm hover:ring-1 hover:ring-amber-300"
+          class="mt-2 flex items-center justify-between gap-2 rounded-xl bg-white dark:bg-slate-800 px-3 py-2.5 text-sm hover:ring-1 hover:ring-amber-300 dark:hover:ring-amber-800"
         >
           <span>
             <span class="font-mono font-semibold">{{ t.ticket_no }}</span>
-            <span class="ml-2 text-slate-500">{{ timeAgo(t.created_at) }}</span>
+            <span class="ml-2 text-slate-500 dark:text-slate-400">{{ timeAgo(t.created_at) }}</span>
           </span>
           <StatusBadge :status="t.status" />
         </RouterLink>
-        <p class="mt-2 text-xs text-amber-800">หากเป็นปัญหาเดิม ไม่ต้องแจ้งซ้ำ — กดดูสถานะได้เลย</p>
+        <p class="mt-2 text-xs text-amber-800 dark:text-amber-300">หากเป็นปัญหาเดิม ไม่ต้องแจ้งซ้ำ — กดดูสถานะได้เลย</p>
       </section>
 
       <div class="mt-5 grid gap-3">
         <RouterLink :to="{ name: 'request', params: { type: 'repair' }, query: { asset: asset.asset_code } }" class="btn-primary py-3.5 text-base">
           <Icon name="wrench" /> แจ้งซ่อมเครื่องนี้
         </RouterLink>
-        <RouterLink :to="{ name: 'request', params: { type: 'service' }, query: { asset: asset.asset_code } }" class="btn-secondary py-3">
+        <RouterLink :to="{ name: 'home' }" class="btn-secondary py-3">
           <Icon name="service" :size="18" /> ขอติดตั้งโปรแกรม / บริการอื่น
         </RouterLink>
       </div>
 
       <section v-if="asset.recent_maintenance.length" class="mt-6">
-        <h2 class="mb-2 text-sm font-semibold text-slate-500">ประวัติการบำรุงรักษาล่าสุด</h2>
-        <ul class="card divide-y divide-slate-100 text-sm">
+        <h2 class="mb-2 text-sm font-semibold text-slate-500 dark:text-slate-400">ประวัติการบำรุงรักษาล่าสุด</h2>
+        <ul class="card divide-y divide-slate-100 dark:divide-slate-700 text-sm">
           <li v-for="(m, i) in asset.recent_maintenance" :key="i" class="flex items-center justify-between px-4 py-2.5">
             <span>{{ fmtDate(m.performed_on) }}</span>
-            <span :class="['rounded-md px-2 py-0.5 text-xs font-semibold', m.kind === 'BM' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700']">
+            <span :class="['rounded-md px-2 py-0.5 text-xs font-semibold', m.kind === 'BM' ? 'bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300' : 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300']">
               {{ m.kind === 'BM' ? 'ซ่อมเมื่อเสีย (BM)' : 'บำรุงรักษา (PM)' }}
             </span>
           </li>

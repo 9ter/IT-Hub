@@ -1,0 +1,460 @@
+{
+  "date": "2026-10-28",
+  "document_updated": "2026-10-29",
+  "document_code": "WI-IT-003",
+  "document_revision": "00",
+  "test_suites": 12,
+  "automated_checks": 568,
+  "browser_checks": 28,
+  "pdfs": [
+    {
+      "file": "WI-IT-003.pdf",
+      "pages": 27,
+      "size": "A4",
+      "searchable_thai": true,
+      "blank_pages": 0
+    },
+    {
+      "file": "SYSTEM-CHECK-2026-10-28.pdf",
+      "pages": 4,
+      "size": "A4",
+      "searchable_thai": true,
+      "blank_pages": 0
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "01-home.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "02-asset-public.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "03-repair.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "04-success.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "05-service.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "06-request-signature.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "07-email.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "08-borrow.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "09-purchase.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "10-track.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "11-approval.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "12-completion-approval.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "13-login.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "14-dashboard.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "15-tickets.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "16-ticket.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "17-ticket-completion.png",
+      "width": 643,
+      "height": 254
+    },
+    {
+      "file": "18-archive.png",
+      "width": 643,
+      "height": 220
+    },
+    {
+      "file": "19-borrow-approval.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "20-borrow-list.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "21-borrow-record.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "22-documents.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "23-assets.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "24-asset-detail.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "25-qr.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "26-employees.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "27-admins.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "28-nas.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "29-mobile.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "30-document-editor.png",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "file": "31-borrow-return.png",
+      "width": 900,
+      "height": 284
+    }
+  ],
+  "offline_html": true,
+  "visual_review": {
+    "wi_pages": [
+      1,
+      2,
+      6,
+      14,
+      17,
+      19,
+      25,
+      26,
+      27
+    ],
+    "report_pages": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "note": "Original content reviewed on 2026-10-28; revised WI-IT-003 Rev.00 cover visually checked on 2026-10-29 with blank preparer/reviewer fields."
+  },
+  "files": [
+    {
+      "file": "README.md",
+      "bytes": 4215,
+      "sha256": "a643c6a12baa640a1c2d2fb2a2b1d58dd7d7794fc79dc6b313784120f4db2897"
+    },
+    {
+      "file": "SYSTEM-CHECK-2026-10-28.html",
+      "bytes": 69057,
+      "sha256": "343af92407b8e0c81ec02cd85125a86534e3fc82c2140950aff44470eff8dab5"
+    },
+    {
+      "file": "SYSTEM-CHECK-2026-10-28.md",
+      "bytes": 12299,
+      "sha256": "2e36831fdab45bd760a26169f8e4e018fa6a51c38772b6b2bed82e983971a98f"
+    },
+    {
+      "file": "SYSTEM-CHECK-2026-10-28.pdf",
+      "bytes": 58632,
+      "sha256": "e084eee07802bfdc014864956ad3f312322f947b210e13ca0d1fe6c32674a630"
+    },
+    {
+      "file": "WI-IT-003.html",
+      "bytes": 2384572,
+      "sha256": "533c9b1fa39878f60a3163294d1ed23a733c4f23c8b2642a2d37ca9e0162a61b"
+    },
+    {
+      "file": "WI-IT-003.md",
+      "bytes": 51831,
+      "sha256": "915ba11b9ed703ee978f765127f9e4bf367d2a1016b52fea8e02b1e88c99aab9"
+    },
+    {
+      "file": "WI-IT-003.pdf",
+      "bytes": 1614128,
+      "sha256": "9ba7996e9cf2045ee7b30b4c2c2a9c1c74643dfbbe2ddb45ffa710ba23e60d8e"
+    },
+    {
+      "file": "fonts/OFL.txt",
+      "bytes": 4378,
+      "sha256": "bd85ada3eef71267263e0fd24a40ae20380015c7cf1afa0c27a4340b03431320"
+    },
+    {
+      "file": "fonts/noto-sans-thai-latin-400-normal.woff2",
+      "bytes": 10268,
+      "sha256": "fde3c93cfbfd8c97286fac1cca1c89912eb61857dd3996d26b7c0eaf16715bb6"
+    },
+    {
+      "file": "fonts/noto-sans-thai-latin-700-normal.woff2",
+      "bytes": 10220,
+      "sha256": "af79e77ba9fd08231b341621ee55fef64a63e0e1da954734e2766bec60830bd9"
+    },
+    {
+      "file": "fonts/noto-sans-thai-thai-400-normal.woff2",
+      "bytes": 9112,
+      "sha256": "57776453076ebf0fa935080e63c0ae656f1f1ecd5172112d59d3b259e0dd8796"
+    },
+    {
+      "file": "fonts/noto-sans-thai-thai-700-normal.woff2",
+      "bytes": 9128,
+      "sha256": "fa4acaf9f20aa6d9a4c86c6474fe40e65525dd2ed6dd687f55a4ef1da5a0a57e"
+    },
+    {
+      "file": "images/01-home.png",
+      "bytes": 155474,
+      "sha256": "6ca03fb45b93564345f5468d8c5519a38a02fb628a7d87405798a5f9b98597ad"
+    },
+    {
+      "file": "images/02-asset-public.png",
+      "bytes": 44882,
+      "sha256": "d004ac74a9ffdeed666d2926db4de63bcd6272a974409f359d83e18252a93bbb"
+    },
+    {
+      "file": "images/03-repair.png",
+      "bytes": 62953,
+      "sha256": "b3efcadf7da4ee1f965684bf0a66fe0fee52c2e97dd35ff6ed6800204f9c423c"
+    },
+    {
+      "file": "images/04-success.png",
+      "bytes": 42420,
+      "sha256": "707e474ec4211c57d5ae49afe95d4ce75cfcdf580506110ad9663e573815644d"
+    },
+    {
+      "file": "images/05-service.png",
+      "bytes": 67947,
+      "sha256": "a8a5dd445004b24956af96e480b9bb92bf8ed2b907290c18306aacff73928bf4"
+    },
+    {
+      "file": "images/06-request-signature.png",
+      "bytes": 57977,
+      "sha256": "904f05b0f2c1619490fa8cce4014ffcccfdf54976107de82a06a1cab5a021b2a"
+    },
+    {
+      "file": "images/07-email.png",
+      "bytes": 70491,
+      "sha256": "a22e37fc1195ecbf2d1dedc07df8e93a6f5786445c0ed8b881a784f53eefb706"
+    },
+    {
+      "file": "images/08-borrow.png",
+      "bytes": 74211,
+      "sha256": "54930bf5375e74f59234e70bbf177bdd7841997e1f7183cdf5a34f2f80a8ebba"
+    },
+    {
+      "file": "images/09-purchase.png",
+      "bytes": 75645,
+      "sha256": "abea0d9dfb7d14756cc7e29223543c83187cb8fd5fe1425e76e975b88899d77c"
+    },
+    {
+      "file": "images/10-track.png",
+      "bytes": 62110,
+      "sha256": "377fe85a8cd7c55b11d8471e88a84cee6c9f0f9df087b7558fd873c60ee63b81"
+    },
+    {
+      "file": "images/11-approval.png",
+      "bytes": 73805,
+      "sha256": "a2298d43e60b4c4d1a496ddb653aa699ed6de1569f9df690352cc841f04798b4"
+    },
+    {
+      "file": "images/12-completion-approval.png",
+      "bytes": 85063,
+      "sha256": "ba08766c21f460cb7b7c24c99ea182d702920c269c3a0e9abf6af44321fd3084"
+    },
+    {
+      "file": "images/13-login.png",
+      "bytes": 27734,
+      "sha256": "447eb6fcf84dbd89d347e30b063fb8661ec6dd5d9b121a9e9df63749d65c2da5"
+    },
+    {
+      "file": "images/14-dashboard.png",
+      "bytes": 96644,
+      "sha256": "4530a403e4180b7d48c26f88cdf5aa94d7d3d4db4cbe103afd9946981d82bea3"
+    },
+    {
+      "file": "images/15-tickets.png",
+      "bytes": 93237,
+      "sha256": "722be8f8fc4803b2c4c9cda40596921b8d713a0baa07018cd5a7e8c4dac03678"
+    },
+    {
+      "file": "images/16-ticket.png",
+      "bytes": 158786,
+      "sha256": "d8ac4878c4decdf228a9a4f881e54b7c3730cdd8be92d45bca6dbcfa34e87dfd"
+    },
+    {
+      "file": "images/17-ticket-completion.png",
+      "bytes": 26408,
+      "sha256": "ee1ff6632ee6823aa6c093ece3958a62312a0c5af91374ab65d79f15812e898a"
+    },
+    {
+      "file": "images/18-archive.png",
+      "bytes": 18180,
+      "sha256": "fdd998216218b5a81dcd786fd895fd991b4953c749b90ba6f3e1c722da4d47c2"
+    },
+    {
+      "file": "images/19-borrow-approval.png",
+      "bytes": 136019,
+      "sha256": "bb0c98b94a2a1e6743b8922cff34166603c8a8572e710fe4ab2d5fe6c14a6c4a"
+    },
+    {
+      "file": "images/20-borrow-list.png",
+      "bytes": 117795,
+      "sha256": "689f21fb94461c57865299df5886bebbe179062815199083211771fe4bb994bd"
+    },
+    {
+      "file": "images/21-borrow-record.png",
+      "bytes": 98211,
+      "sha256": "b7a080382dbbab098848c40480de758cf436272d3f85ea8435e8fc40a3e85eb8"
+    },
+    {
+      "file": "images/22-documents.png",
+      "bytes": 168790,
+      "sha256": "0636e0df7a733d7b0db3c859474d86cded1c45687a9b366e8f8468587b8ee625"
+    },
+    {
+      "file": "images/23-assets.png",
+      "bytes": 73367,
+      "sha256": "ca3531ce78d7b91a94a62906a250d7f575a047eb496736c10005bdc184a5839b"
+    },
+    {
+      "file": "images/24-asset-detail.png",
+      "bytes": 116406,
+      "sha256": "b786af7dec6365ade47c9e26a97c864b04477338e946725d18c7a1e2954c3eac"
+    },
+    {
+      "file": "images/25-qr.png",
+      "bytes": 29125,
+      "sha256": "9f0a07f7fd0977374d4d163055bd5d2dfacfad2c698947489f70a89304bcb9d8"
+    },
+    {
+      "file": "images/26-employees.png",
+      "bytes": 86320,
+      "sha256": "10e9d8edb0b903f153d9f62c08b1fa69519bf46e00d53378b7e3055080bcfa5c"
+    },
+    {
+      "file": "images/27-admins.png",
+      "bytes": 61449,
+      "sha256": "43ce6d7e177d2ee3228f919c47c0a189eb7605dbdea3a8955a20036e415c2edc"
+    },
+    {
+      "file": "images/28-nas.png",
+      "bytes": 126306,
+      "sha256": "bb109080cd1ac790663c6b47b7ed12e1a2740d1c0467ddbb414d51ef1a3f9173"
+    },
+    {
+      "file": "images/29-mobile.png",
+      "bytes": 52322,
+      "sha256": "c3a21f36db7ef61bb2bfef63ca409a71e8052a93c78a8a42c4dbfc3dce5a5826"
+    },
+    {
+      "file": "images/30-document-editor.png",
+      "bytes": 93043,
+      "sha256": "1a4fd3b76ddcdeabecf16e04b4de30d99da869e88e54e3803c58c8ea469fd003"
+    },
+    {
+      "file": "images/31-borrow-return.png",
+      "bytes": 21736,
+      "sha256": "701f15c207b579e86429c73abb04ffef0b8158ef268c771133b0cdaf5af02a46"
+    },
+    {
+      "file": "tools/build_wi.py",
+      "bytes": 7685,
+      "sha256": "b347a58f3c6989d7d37a43a1b4b8727df2ebcfb276c339a272c9af319cd28c17"
+    },
+    {
+      "file": "tools/check_artifacts.py",
+      "bytes": 3615,
+      "sha256": "504d78f2e52d4dba925243a67639afd10d48a43d92235596f899f4f97af49f3c"
+    },
+    {
+      "file": "tools/print_wi.cjs",
+      "bytes": 2210,
+      "sha256": "fdf69e423369ad641785ecf9b8799dcc9287348911b02563663b2cc262416945"
+    },
+    {
+      "file": "validation/browser-results.json",
+      "bytes": 3694,
+      "sha256": "0baf0071e4cb23b5367cb463e93e21f6509801f9dc543a9d3245df846e15a5ba"
+    },
+    {
+      "file": "validation/health.json",
+      "bytes": 191,
+      "sha256": "64b747c017dcc3ccc14f8bd3a610f7fbc2eccb55f1373350c59f5b6b9bc2de40"
+    },
+    {
+      "file": "validation/lint.json",
+      "bytes": 51,
+      "sha256": "a08221ae302260d24414f63e602e9cb713d2e6c9d98c4a9dce657a940267caa2"
+    },
+    {
+      "file": "validation/print-layout.json",
+      "bytes": 6257,
+      "sha256": "a10115ffd321085c63b8addbbb3622e5e7df6c8fbad5a727746f3ef0a78d6806"
+    },
+    {
+      "file": "validation/test-results.json",
+      "bytes": 1918,
+      "sha256": "24963c88656ab65620cf7e3542d978031d7cf81f29ab6baef8bc7ed01bc8e1b3"
+    }
+  ]
+}

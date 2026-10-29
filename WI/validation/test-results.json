@@ -1,0 +1,86 @@
+[
+  {
+    "suite": "approval_integration",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 78 integration checks; temporary tables only; loopback SMTP only."
+    ]
+  },
+  {
+    "suite": "completion_workflow",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 50 completion checks; temporary tables and loopback SMTP only."
+    ]
+  },
+  {
+    "suite": "it_staff_signatures",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 24 IT signature checks; temporary tables only; no email sent."
+    ]
+  },
+  {
+    "suite": "employee_grouping",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 29 employee grouping checks (temporary tables; source read-only)"
+    ]
+  },
+  {
+    "suite": "documents_workflow",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 69 document workflow checks; temporary tables and local SMTP only"
+    ]
+  },
+  {
+    "suite": "purchase_approval",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 46 purchase approval checks; temporary tables and loopback SMTP only"
+    ]
+  },
+  {
+    "suite": "purchase_signoffs",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 52 purchase sign-off checks; temporary tables and loopback SMTP only"
+    ]
+  },
+  {
+    "suite": "borrow_records",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 91 borrow approval/register checks; temporary tables only, no email"
+    ]
+  },
+  {
+    "suite": "archives",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 26 archive outbox checks; temporary tables, fake NAS and renderer only"
+    ]
+  },
+  {
+    "suite": "nas_mapping",
+    "exit_code": 0,
+    "summary": [
+      "PASS 50 NAS mapping checks; no database or remote writes"
+    ]
+  },
+  {
+    "suite": "nas_transport",
+    "exit_code": 0,
+    "summary": [
+      "PASS 22 SMB transport checks; fixture responses only"
+    ]
+  },
+  {
+    "suite": "nas_upload",
+    "exit_code": 0,
+    "summary": [
+      "PASS: 31 atomic NAS upload checks; no network"
+    ]
+  }
+]

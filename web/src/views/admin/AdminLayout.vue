@@ -3,6 +3,8 @@ import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import Icon from '@/components/Icon.vue'
+import itHubLogo from '@/assets/ithub-logo.png'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import { auth } from '@/store'
 
 const router = useRouter()
@@ -13,7 +15,11 @@ const nav = [
   { to: '/admin', label: 'ภาพรวม', icon: 'dashboard', exact: true },
   { to: '/admin/tickets', label: 'คำขอ / แจ้งซ่อม', icon: 'list' },
   { to: '/admin/assets', label: 'ทะเบียนอุปกรณ์', icon: 'desktop' },
+  { to: '/admin/documents', label: 'เอกสารฝ่าย IT', icon: 'list' },
+  { to: '/admin/borrows', label: 'บันทึกเบิก–ยืมอุปกรณ์', icon: 'list' },
+  { to: '/admin/employees', label: 'ข้อมูลพนักงาน', icon: 'users' },
   { to: '/admin/admins', label: 'ผู้ดูแลระบบ', icon: 'users' },
+  { to: '/admin/nas', label: 'Map NAS', icon: 'server' },
 ]
 
 watch(() => route.fullPath, () => (open.value = false))
@@ -30,9 +36,13 @@ async function logout() {
 <template>
   <div class="min-h-dvh lg:pl-60 print:pl-0">
     <!-- แถบบนมือถือ -->
-    <header class="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4 lg:hidden no-print">
+    <header class="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 lg:hidden no-print">
       <button class="btn-ghost -ml-2 p-2" aria-label="เมนู" @click="open = true"><Icon name="menu" /></button>
-      <span class="font-bold">IT Hub Admin</span>
+      <RouterLink to="/admin" class="flex items-center gap-3" aria-label="IT Hub Admin">
+        <img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="h-10 w-auto rounded bg-white object-contain" />
+        <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">ADMIN</span>
+      </RouterLink>
+      <ThemeToggle class="ml-auto" />
     </header>
 
     <div v-if="open" class="fixed inset-0 z-40 bg-slate-900/40 lg:hidden" @click="open = false" />
@@ -42,12 +52,11 @@ async function logout() {
         open ? 'translate-x-0' : '-translate-x-full',
       ]"
     >
-      <RouterLink to="/admin" class="flex h-16 items-center gap-2.5 px-5 font-bold text-white">
-        <span class="grid size-8 place-items-center rounded-lg bg-brand-600"><Icon name="desktop" :size="18" /></span>
-        IT Hub
+      <RouterLink to="/admin" class="flex h-16 items-center gap-2.5 px-5 font-bold text-white" aria-label="IT Hub Admin">
+        <img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="h-12 w-auto rounded bg-white p-1 object-contain" />
         <span class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300">ADMIN</span>
       </RouterLink>
-      <nav class="flex-1 space-y-1 px-3 py-2">
+      <nav class="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2">
         <RouterLink
           v-for="item in nav"
           :key="item.to"
@@ -61,6 +70,10 @@ async function logout() {
         </RouterLink>
       </nav>
       <div class="border-t border-white/10 p-3">
+        <div class="mb-2 flex items-center justify-between px-2 text-sm">
+          <span>ธีมการแสดงผล</span>
+          <ThemeToggle class="text-slate-300 hover:bg-white/10 hover:text-white" />
+        </div>
         <div class="flex items-center gap-3 px-2 py-2">
           <span class="grid size-8 place-items-center rounded-full bg-white/10 text-sm font-semibold text-white">{{ auth.admin?.display_name.slice(0, 1) }}</span>
           <div class="min-w-0 flex-1">

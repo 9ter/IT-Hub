@@ -13,6 +13,12 @@ const TICKET_STATUSES = [
 const TICKET_OPEN_STATUSES = ['new', 'accepted', 'in_progress', 'waiting'];
 const TICKET_CLOSED_STATUSES = ['done', 'rejected', 'cancelled'];
 
+/** Read old single-item borrow requests without rewriting their stored data. */
+function borrow_items_for_details(array $details): array
+{
+    return $details['borrow_items']??[['device_kind'=>$details['device_kind']??'other','item'=>$details['item']??'','quantity'=>$details['quantity']??1]];
+}
+
 const TICKET_PRIORITIES = ['low' => 'ต่ำ', 'normal' => 'ปกติ', 'high' => 'สูง', 'urgent' => 'ด่วนมาก'];
 
 const ASSET_STATUSES = ['active' => 'ใช้งาน', 'repair' => 'ส่งซ่อม', 'spare' => 'สำรอง', 'retired' => 'จำหน่าย/เลิกใช้'];
@@ -22,6 +28,7 @@ const SERVICE_ACTIONS = [
     'install' => 'Format / ติดตั้ง OS / ติดตั้งหรืออัปเดตโปรแกรม',
     'remote_vpn' => 'ขอรีโมท / VPN',
     'access' => 'ขอเพิ่มสิทธิ์ / เปลี่ยนสิทธิ์การเข้าระบบ',
+    'company_email' => 'ขอ E-mail บริษัท',
     'other' => 'อื่นๆ',
 ];
 const DEVICE_KINDS = ['computer' => 'Computer', 'notebook' => 'Notebook', 'other' => 'อื่นๆ'];
@@ -100,17 +107,33 @@ function ticket_types(): array
             'form' => 'FM-IT-008',
             'prefix' => 'BR',
             'parse' => function (Input $in): array {
+                $items=[];
+                if ($in->has('borrow_items')) {
+                    foreach($in->rows('borrow_items',50,'รายการอุปกรณ์') as $i=>$row) {
+                        if (!is_array($row)) {$in->error('borrow_items.'.$i,'ข้อมูลรายการไม่ถูกต้อง');continue;}
+                        $entry=new Input($row);
+                        $item=['device_kind'=>$entry->enum('device_kind',['notebook','other'],true,'ประเภทอุปกรณ์'),
+                            'item'=>$entry->str('item',150,true,'อุปกรณ์ที่ต้องการ'),'quantity'=>$entry->int('quantity',1,100,true,'จำนวน')];
+                        try {$entry->check();$items[]=$item;} catch(HttpError $e) {foreach($e->errors as $key=>$message)$in->error('borrow_items.'.$i.'.'.$key,$message);}
+                    }
+                } else {
+                    $items[]=['device_kind'=>$in->enum('device_kind',['notebook','other'],true,'ประเภทอุปกรณ์'),
+                        'item'=>$in->str('item',150,true,'อุปกรณ์ที่ต้องการ'),'quantity'=>$in->int('quantity',1,100,true,'จำนวน')];
+                }
+                $first=$items[0]??['device_kind'=>null,'item'=>null,'quantity'=>null];
                 $d = [
-                    'device_kind' => $in->enum('device_kind', ['notebook', 'other'], true, 'ประเภทอุปกรณ์'),
-                    'item' => $in->str('item', 150, true, 'อุปกรณ์ที่ต้องการ'),
-                    'quantity' => $in->int('quantity', 1, 100, true, 'จำนวน'),
+                    'borrow_items'=>$items,
+                    'device_kind'=>count(array_unique(array_column($items,'device_kind')))>1?'mixed':$first['device_kind'],
+                    'item'=>$first['item'],
+                    'quantity'=>$first['quantity'],
                     'start_date' => $in->date('start_date', true, 'วันที่เริ่มใช้'),
                     'end_date' => $in->date('end_date', false, 'วันที่คืน'),
                 ];
                 if ($d['start_date'] && $d['end_date'] && $d['end_date'] < $d['start_date']) {
                     $in->error('end_date', 'วันที่คืนต้องไม่ก่อนวันที่เริ่มใช้');
                 }
-                return [$d, 'เบิก-ยืม: ' . $d['item'] . ' x' . $d['quantity']];
+                foreach (['start_date','end_date'] as $key) if ($d[$key] && date('Y-m-d',strtotime($d[$key]))!==$d[$key]) $in->error($key,'วันที่ไม่ถูกต้อง');
+                return [$d, 'เบิก-ยืม: ' . $d['item'] . ' x' . $d['quantity'].(count($items)>1?' และอีก '.(count($items)-1).' รายการ':'')];
             },
         ],
         'purchase' => [

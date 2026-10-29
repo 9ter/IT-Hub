@@ -1,10 +1,13 @@
 # Local config / secrets
 api/config.php
+api/vendor/
 admin.txt
 
 # Private data — do not publish
 sql/02_seed_assets.sql
 MEMORY.md
+Inventory.xlsx
+FM-IT-001 ใบทะบียนคอมพิวเตอร์และสารสนเทศ.xlsx
 
 # Uploads
 storage/uploads/*
@@ -18,3 +21,4 @@ web/dist/
 .DS_Store
 *.log
 .env
+FM-IT

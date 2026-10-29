@@ -4,7 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1d4ed8" />
-    <link rel="icon" href="/it-hub/favicon.svg" type="image/svg+xml" />
+    <script>
+      // Apply the saved theme before the first paint.
+      (() => {
+        let theme;
+        try { theme = localStorage.getItem('ithub.theme'); } catch {}
+        const dark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+        if (dark) document.querySelector('meta[name="theme-color"]').content = '#0f172a';
+      })();
+    </script>
+    <link rel="icon" href="/src/assets/ithub-logo.png" type="image/png" />
     <title>IT Hub</title>
   </head>
   <body>

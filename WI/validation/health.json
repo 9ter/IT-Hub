@@ -1,0 +1,11 @@
+{
+  "assets": 149,
+  "tickets": 10,
+  "archive_status_counts": {
+    "sent": 5
+  },
+  "nas_configured": true,
+  "nas_runtime_ready": true,
+  "archive_cron_entries": 1,
+  "cron_active": true
+}

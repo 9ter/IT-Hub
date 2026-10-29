@@ -4,6 +4,7 @@ import router from './router'
 import { setUnauthorizedHandler } from './api'
 import { auth } from './store'
 import './style.css'
+import './theme'
 
 // session หมดอายุระหว่างใช้งานหน้า admin → กลับไปหน้า login
 setUnauthorizedHandler(() => {

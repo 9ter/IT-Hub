@@ -1,0 +1,201 @@
+{
+  "result": [
+    {
+      "file": "WI-IT-003.pdf",
+      "sections": [
+        {
+          "section": 1,
+          "title": "WI-IT-003",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 2,
+          "title": "สารบัญ",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 3,
+          "title": "1. วัตถุประสงค์ ขอบเขต และหน้าที่",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 4,
+          "title": "2. เลือกบริการและเข้าใจกระบวนการ",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 5,
+          "title": "3. เปิดระบบ ค้นหา และสแกน QR",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 6,
+          "title": "4. แจ้งซ่อม FM-IT-003",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 7,
+          "title": "5. เก็บเลขที่หลังส่งคำขอ",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 8,
+          "title": "6. ร้องขอดำเนินการด้าน IT FM-IT-010",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 9,
+          "title": "7. ลงนามผู้ร้องขอ FM-IT-010 และ FM-IT-007",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 10,
+          "title": "8. ขอใช้ E-mail บริษัท FM-IT-009",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 11,
+          "title": "9. ขอเบิก–ยืมอุปกรณ์ FM-IT-008",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 12,
+          "title": "10. ขอซื้อครุภัณฑ์คอมพิวเตอร์ FM-IT-007",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 13,
+          "title": "11. ติดตามสถานะคำขอ",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 14,
+          "title": "12. อนุมัติคำขอจากอีเมล",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 15,
+          "title": "13. รับรองผลการดำเนินการ FM-IT-010",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 16,
+          "title": "14. เข้าสู่ระบบ Admin และรับเรื่อง",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 17,
+          "title": "15. บันทึกผล ลงนาม IT และปิดงาน",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 18,
+          "title": "16. Admin อนุมัติเบิก–ยืม",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 19,
+          "title": "17. จ่ายอุปกรณ์และบันทึกคืนแยกรายการ",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 20,
+          "title": "18. ใช้เอกสารฝ่าย IT และพิมพ์แบบเปล่า",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 21,
+          "title": "19. รายการแบบฟอร์มและสถานะเอกสาร",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 22,
+          "title": "20. ทะเบียนอุปกรณ์และประวัติบำรุงรักษา",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 23,
+          "title": "21. พิมพ์สติกเกอร์ QR และแบบฟอร์ม",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 24,
+          "title": "22. จัดการพนักงาน บัญชี และลายเซ็น IT",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 25,
+          "title": "23. ตั้งค่าและตรวจ Map NAS",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 26,
+          "title": "24. ตรวจการส่ง PDF ไป NAS หลังปิดงาน",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 27,
+          "title": "25. แก้เหตุขัดข้องและตรวจงานประจำวัน",
+          "height": 1051,
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "file": "SYSTEM-CHECK-2026-10-28.pdf",
+      "sections": [
+        {
+          "section": 1,
+          "title": "รายงานตรวจการทำงานระบบ IT Hub",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 2,
+          "title": "ผลทดสอบกระบวนการและเอกสาร",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 3,
+          "title": "สถานะที่ตรวจพบและขอบเขตที่ยังไม่ยืนยัน",
+          "height": 1051,
+          "overflow": false
+        },
+        {
+          "section": 4,
+          "title": "หลักฐานและการตรวจรับเอกสาร",
+          "height": 1051,
+          "overflow": false
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

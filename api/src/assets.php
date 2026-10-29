@@ -28,7 +28,7 @@ function asset_list(array $q): array
 
     $sql = "SELECT a.id, a.asset_code, a.company, a.brand_model, a.serial_no, a.hostname, a.holder_name, a.holder_nickname,
             a.department, a.location, a.status, a.registered_at, c.name AS category_name,
-            (SELECT COUNT(*) FROM tickets t WHERE t.asset_id = a.id AND t.status IN ('" . implode("','", TICKET_OPEN_STATUSES) . "')) AS open_tickets
+            (SELECT COUNT(*) FROM tickets t WHERE t.asset_id = a.id AND t.type = 'repair' AND t.status IN ('" . implode("','", TICKET_OPEN_STATUSES) . "')) AS open_tickets
         FROM assets a LEFT JOIN asset_categories c ON c.id = a.category_id"
         . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
         . ' ORDER BY a.asset_code';
@@ -47,7 +47,7 @@ function asset_detail(int $id): array
     $stmt->execute([$id]);
     $asset = $stmt->fetch() ?: fail('ไม่พบอุปกรณ์', 404);
 
-    $stmt = db()->prepare('SELECT id, ticket_no, type, title, status, created_at, finished_at FROM tickets WHERE asset_id = ? ORDER BY created_at DESC LIMIT 50');
+    $stmt = db()->prepare('SELECT id, ticket_no, type, title, status, created_at, finished_at FROM tickets WHERE asset_id = ? AND type = \'repair\' ORDER BY created_at DESC LIMIT 50');
     $stmt->execute([$id]);
     $asset['tickets'] = $stmt->fetchAll();
 
@@ -59,7 +59,7 @@ function asset_detail(int $id): array
     return $asset;
 }
 
-function asset_save(?int $id, array $body): array
+function asset_data(array $body): array
 {
     $in = new Input($body);
     $row = [
@@ -82,12 +82,18 @@ function asset_save(?int $id, array $body): array
     if ($row['asset_code'] !== '' && !preg_match('/^[A-Z0-9][A-Z0-9._-]*$/', $row['asset_code'])) {
         $in->error('asset_code', 'หมายเลขทะเบียนใช้ได้เฉพาะ A-Z, 0-9, - . _');
     }
+    $in->check();
+    return $row;
+}
+
+function asset_save(?int $id, array $body): array
+{
+    $row = asset_data($body);
     $dup = db()->prepare('SELECT id FROM assets WHERE asset_code = ? AND id <> ?');
     $dup->execute([$row['asset_code'], $id ?? 0]);
     if ($dup->fetchColumn()) {
-        $in->error('asset_code', 'หมายเลขทะเบียนนี้มีอยู่แล้ว');
+        fail('ข้อมูลไม่ครบหรือไม่ถูกต้อง', 422, ['asset_code' => 'หมายเลขทะเบียนนี้มีอยู่แล้ว']);
     }
-    $in->check();
 
     if ($id === null) {
         db()->prepare('INSERT INTO assets (' . implode(', ', ASSET_FIELDS) . ') VALUES (' . implode(', ', array_fill(0, count(ASSET_FIELDS), '?')) . ')')

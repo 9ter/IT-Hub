@@ -19,7 +19,7 @@ function dashboard(): array
 
     $queue = $pdo->query("SELECT t.id, t.ticket_no, t.type, t.title, t.status, t.priority, t.requester_name, t.requester_dept,
             t.created_at, a.asset_code, ad.display_name AS assigned_name
-        FROM tickets t LEFT JOIN assets a ON a.id = t.asset_id LEFT JOIN admins ad ON ad.id = t.assigned_to
+        FROM tickets t LEFT JOIN assets a ON a.id = t.asset_id AND t.type = 'repair' LEFT JOIN admins ad ON ad.id = t.assigned_to
         WHERE t.status IN ($open)
         ORDER BY FIELD(t.priority, 'urgent', 'high', 'normal', 'low'), FIELD(t.status, 'new') DESC, t.created_at
         LIMIT 15")->fetchAll();
@@ -75,8 +75,9 @@ function ticket_list(array $q): array
     }
 
     $sql = 'SELECT t.id, t.ticket_no, t.type, t.title, t.status, t.priority, t.requester_name, t.requester_dept,
-            t.created_at, t.finished_at, a.asset_code, ad.display_name AS assigned_name
-        FROM tickets t LEFT JOIN assets a ON a.id = t.asset_id LEFT JOIN admins ad ON ad.id = t.assigned_to'
+            t.created_at, t.finished_at, a.asset_code, ad.display_name AS assigned_name,
+            (SELECT ar.status FROM ticket_archives ar WHERE ar.ticket_id=t.id ORDER BY ar.id DESC LIMIT 1) AS nas_archive_status
+        FROM tickets t LEFT JOIN assets a ON a.id = t.asset_id AND t.type = \'repair\' LEFT JOIN admins ad ON ad.id = t.assigned_to'
         . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
         . ' ORDER BY t.created_at DESC, t.id DESC';
 
@@ -85,7 +86,7 @@ function ticket_list(array $q): array
 
 function admin_list(): array
 {
-    return db()->query('SELECT id, username, display_name, is_active, last_login_at, created_at FROM admins ORDER BY display_name')->fetchAll();
+    return db()->query('SELECT id, username, display_name, is_active, last_login_at, created_at, signature_data, signature_updated_at FROM admins ORDER BY display_name')->fetchAll();
 }
 
 function admin_save(?int $id, array $body, array $me): array

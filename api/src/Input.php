@@ -104,6 +104,17 @@ final class Input
         return date('Y-m-d H:i:s', $ts);
     }
 
+    /** A bounded list; callers validate each row's fields separately. */
+    public function rows(string $key, int $max, string $label = ''): array
+    {
+        $value=$this->data[$key]??null;
+        if (!is_array($value) || !array_is_list($value) || count($value)<1 || count($value)>$max) {
+            $this->error($key,($label?:$key).' ต้องมีตั้งแต่ 1 ถึง '.$max.' รายการ');
+            return [];
+        }
+        return $value;
+    }
+
     public function bool(string $key, bool $default = false): bool
     {
         return array_key_exists($key, $this->data) ? filter_var($this->data[$key], FILTER_VALIDATE_BOOL) : $default;

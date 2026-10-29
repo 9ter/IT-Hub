@@ -63,7 +63,7 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
     <button
       v-for="[k, label] in [['open', 'งานค้าง'], ['all', 'ทั้งหมด'], ...Object.entries(meta!.ticket_statuses)]"
       :key="k"
-      :class="['rounded-full px-3.5 py-1.5 text-sm font-medium transition', filters.status === k ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-slate-400']"
+      :class="['rounded-full px-3.5 py-1.5 text-sm font-medium transition', filters.status === k ? 'bg-slate-900 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-slate-400']"
       @click="setFilter('status', k)"
     >
       {{ label }}
@@ -107,7 +107,7 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
         <tbody :class="loading && 'opacity-50'">
           <tr v-for="t in result?.data" :key="t.id" class="cursor-pointer" @click="router.push({ name: 'ticket', params: { id: t.id } })">
             <td class="font-mono text-xs whitespace-nowrap">
-              <RouterLink :to="{ name: 'ticket', params: { id: t.id } }" class="font-semibold text-brand-700" @click.stop>{{ t.ticket_no }}</RouterLink>
+              <RouterLink :to="{ name: 'ticket', params: { id: t.id } }" class="font-semibold text-brand-700 dark:text-brand-300" @click.stop>{{ t.ticket_no }}</RouterLink>
             </td>
             <td class="min-w-64">
               <div class="flex items-center gap-2">
@@ -118,11 +118,11 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
             </td>
             <td class="whitespace-nowrap">
               {{ t.requester_name }}
-              <p class="text-xs text-slate-500">{{ t.requester_dept }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">{{ t.requester_dept }}</p>
             </td>
-            <td><StatusBadge :status="t.status" /></td>
-            <td class="whitespace-nowrap text-slate-600">{{ t.assigned_name ?? '-' }}</td>
-            <td class="whitespace-nowrap text-slate-600">{{ fmtDateTime(t.created_at) }}</td>
+            <td><StatusBadge :status="t.status" /><p v-if="t.nas_archive_status" :class="['mt-1 whitespace-nowrap text-xs',t.nas_archive_status==='failed'?'text-red-600 dark:text-red-400':'text-slate-500 dark:text-slate-400']">NAS: {{ {sent:'ส่งแล้ว',failed:'ส่งไม่สำเร็จ',pending:'รอส่ง',processing:'กำลังส่ง',obsolete:'ฉบับเก่า'}[t.nas_archive_status]||t.nas_archive_status }}</p></td>
+            <td class="whitespace-nowrap text-slate-600 dark:text-slate-300">{{ t.assigned_name ?? '-' }}</td>
+            <td class="whitespace-nowrap text-slate-600 dark:text-slate-300">{{ fmtDateTime(t.created_at) }}</td>
           </tr>
           <tr v-if="result && !result.data.length">
             <td colspan="6" class="py-12 text-center text-slate-400">ไม่พบคำขอ</td>
@@ -130,8 +130,8 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
         </tbody>
       </table>
     </div>
-    <div v-if="result && result.total > result.per_page" class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm">
-      <span class="text-slate-500">ทั้งหมด {{ result.total }} รายการ</span>
+    <div v-if="result && result.total > result.per_page" class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-4 py-3 text-sm">
+      <span class="text-slate-500 dark:text-slate-400">ทั้งหมด {{ result.total }} รายการ</span>
       <div class="flex items-center gap-2">
         <button class="btn-secondary px-3 py-1.5" :disabled="page <= 1" @click="page--">ก่อนหน้า</button>
         <span>{{ page }} / {{ totalPages() }}</span>

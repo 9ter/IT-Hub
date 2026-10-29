@@ -10,6 +10,8 @@ const router = createRouter({
     { path: '/a/:code', name: 'asset', component: () => import('./views/public/AssetView.vue'), props: true },
     { path: '/request/:type', name: 'request', component: () => import('./views/public/RequestForm.vue'), props: true },
     { path: '/track/:no?', name: 'track', component: () => import('./views/public/Track.vue'), props: true },
+    { path: '/approve', name: 'approve', component: () => import('./views/public/Approve.vue') },
+    { path: '/document-approve', name: 'document-approve', component: () => import('./views/public/DocumentApprove.vue') },
 
     { path: '/admin/login', name: 'login', component: () => import('./views/admin/Login.vue') },
     {
@@ -25,6 +27,12 @@ const router = createRouter({
         { path: 'assets/:id', name: 'asset-detail', component: () => import('./views/admin/AssetDetail.vue'), props: (r) => ({ id: Number(r.params.id) }) },
         { path: 'assets/:id/edit', name: 'asset-edit', component: () => import('./views/admin/AssetForm.vue'), props: (r) => ({ id: Number(r.params.id) }) },
         { path: 'admins', name: 'admins', component: () => import('./views/admin/Admins.vue') },
+        { path: 'nas', name: 'nas', component: () => import('./views/admin/Nas.vue') },
+        { path: 'employees', name: 'employees', component: () => import('./views/admin/Employees.vue') },
+        { path: 'documents', name: 'documents', component: () => import('./views/admin/Documents.vue') },
+        { path: 'borrows', name: 'borrow-records', component: () => import('./views/admin/Documents.vue') },
+        { path: 'documents/new', name: 'document-new', component: () => import('./views/admin/DocumentDetail.vue') },
+        { path: 'documents/:id', name: 'document-detail', component: () => import('./views/admin/DocumentDetail.vue') },
       ],
     },
     // หน้าพิมพ์ QR ไม่มีเมนูด้านข้าง

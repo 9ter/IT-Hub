@@ -8,7 +8,19 @@ require __DIR__ . '/Input.php';
 require __DIR__ . '/Router.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/ticket_types.php';
+require __DIR__ . '/signatures.php';
 require __DIR__ . '/tickets.php';
+require __DIR__ . '/employees.php';
+require __DIR__ . '/employee_signatures.php';
+require __DIR__ . '/approvals.php';
+require __DIR__ . '/completion_approvals.php';
+require __DIR__ . '/it_signatures.php';
+require __DIR__ . '/document_forms.php';
+require __DIR__ . '/documents.php';
+require __DIR__ . '/purchase_signatures.php';
+require __DIR__ . '/borrow_approvals.php';
+require __DIR__ . '/nas.php';
+require __DIR__ . '/archives.php';
 
 $GLOBALS['ithub_config'] = require (getenv('ITHUB_CONFIG') ?: __DIR__ . '/../config.php');
 

@@ -22,11 +22,11 @@ onMounted(init)
 
 <template>
   <div v-if="loading" class="flex min-h-dvh items-center justify-center text-slate-400">
-    <div class="size-8 animate-spin rounded-full border-4 border-slate-200 border-t-brand-600" />
+    <div class="size-8 animate-spin rounded-full border-4 border-slate-200 dark:border-slate-700 border-t-brand-600" />
   </div>
   <div v-else-if="metaError" class="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
-    <Icon name="alert" :size="40" class="text-amber-500" />
-    <p class="text-slate-600">{{ metaError }}</p>
+    <Icon name="alert" :size="40" class="text-amber-500 dark:text-amber-400" />
+    <p class="text-slate-600 dark:text-slate-300">{{ metaError }}</p>
     <button class="btn-primary" @click="init"><Icon name="refresh" :size="16" /> ลองใหม่</button>
   </div>
   <RouterView v-else />

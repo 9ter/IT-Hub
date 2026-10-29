@@ -51,7 +51,7 @@ onMounted(async () => {
           autocomplete="off"
           autocapitalize="characters"
         />
-        <button class="btn shrink-0 bg-white px-4 text-brand-800 hover:bg-brand-50" aria-label="ค้นหา"><Icon name="search" /></button>
+        <button class="btn shrink-0 bg-white dark:bg-slate-800 px-4 text-brand-800 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/40" aria-label="ค้นหา"><Icon name="search" /></button>
       </form>
       <p class="relative mt-3 flex items-center gap-2 text-sm text-brand-100">
         <Icon name="qr" :size="16" /> หรือสแกน QR Code ที่ติดบนเครื่อง เพื่อดูข้อมูลและแจ้งซ่อมทันที
@@ -59,18 +59,18 @@ onMounted(async () => {
     </section>
 
     <section v-if="recent.length" class="mt-8">
-      <h2 class="mb-3 text-sm font-semibold text-slate-500">คำขอล่าสุดจากเครื่องนี้</h2>
-      <div class="card divide-y divide-slate-100">
+      <h2 class="mb-3 text-sm font-semibold text-slate-500 dark:text-slate-400">คำขอล่าสุดจากเครื่องนี้</h2>
+      <div class="card divide-y divide-slate-100 dark:divide-slate-700">
         <RouterLink
           v-for="t in recent"
           :key="t.ticket_no"
           :to="{ name: 'track', params: { no: t.ticket_no } }"
-          class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50"
+          class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-900"
         >
           <span :class="['grid size-9 shrink-0 place-items-center rounded-lg', typeInfo[t.type].tone]"><Icon :name="typeInfo[t.type].icon" :size="18" /></span>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium">{{ t.title }}</p>
-            <p class="text-xs text-slate-500">{{ t.ticket_no }} · {{ timeAgo(t.created_at) }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">{{ t.ticket_no }} · {{ timeAgo(t.created_at) }}</p>
           </div>
           <StatusBadge :status="t.status" />
         </RouterLink>
@@ -78,7 +78,7 @@ onMounted(async () => {
     </section>
 
     <section class="mt-8">
-      <h2 class="mb-3 text-sm font-semibold text-slate-500">บริการ IT</h2>
+      <h2 class="mb-3 text-sm font-semibold text-slate-500 dark:text-slate-400">บริการ IT</h2>
       <div class="grid gap-3 sm:grid-cols-2">
         <RouterLink
           v-for="[key, t] in types"
@@ -88,11 +88,11 @@ onMounted(async () => {
         >
           <span :class="['grid size-12 shrink-0 place-items-center rounded-xl', typeInfo[key].tone]"><Icon :name="typeInfo[key].icon" :size="24" /></span>
           <div class="min-w-0 flex-1">
-            <p class="font-semibold text-slate-900">{{ t.label }}</p>
-            <p class="mt-0.5 text-sm text-slate-500">{{ typeInfo[key].desc }}</p>
+            <p class="font-semibold text-slate-900 dark:text-slate-100">{{ t.label }}</p>
+            <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ typeInfo[key].desc }}</p>
             <p class="mt-1 text-xs text-slate-400">{{ t.form }}</p>
           </div>
-          <Icon name="chevron" class="mt-3 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-600" />
+          <Icon name="chevron" class="mt-3 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-600 dark:group-hover:text-brand-400" />
         </RouterLink>
       </div>
     </section>

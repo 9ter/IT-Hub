@@ -1,0 +1,194 @@
+{
+  "checks": [
+    {
+      "kind": "live_read",
+      "path": "/",
+      "result": "pass"
+    },
+    {
+      "kind": "live_read",
+      "path": "/request/repair",
+      "result": "pass"
+    },
+    {
+      "kind": "live_read",
+      "path": "/request/service",
+      "result": "pass"
+    },
+    {
+      "kind": "live_read",
+      "path": "/request/email",
+      "result": "pass"
+    },
+    {
+      "kind": "live_read",
+      "path": "/request/borrow",
+      "result": "pass"
+    },
+    {
+      "kind": "live_read",
+      "path": "/request/purchase",
+      "result": "pass"
+    },
+    {
+      "kind": "live_read",
+      "path": "/admin/login",
+      "result": "pass"
+    },
+    {
+      "kind": "live_auth_redirect",
+      "result": "pass"
+    },
+    {
+      "kind": "live_anonymous_api",
+      "path": "/admin/assets",
+      "status": 401,
+      "result": "pass"
+    },
+    {
+      "kind": "live_anonymous_api",
+      "path": "/admin/tickets",
+      "status": 401,
+      "result": "pass"
+    },
+    {
+      "kind": "live_anonymous_api",
+      "path": "/admin/employees",
+      "status": 401,
+      "result": "pass"
+    },
+    {
+      "kind": "live_anonymous_api",
+      "path": "/admin/nas",
+      "status": 401,
+      "result": "pass"
+    },
+    {
+      "kind": "live_anonymous_api",
+      "path": "/admin/documents",
+      "status": 401,
+      "result": "pass"
+    },
+    {
+      "kind": "live_csrf",
+      "status": 403,
+      "result": "pass"
+    },
+    {
+      "kind": "live_invalid_approval_token",
+      "status": 404,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/",
+      "width": 390,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/repair",
+      "width": 390,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/service",
+      "width": 390,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/email",
+      "width": 390,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/borrow",
+      "width": 390,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/purchase",
+      "width": 390,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/",
+      "width": 320,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/repair",
+      "width": 320,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/service",
+      "width": 320,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/email",
+      "width": 320,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/borrow",
+      "width": 320,
+      "result": "pass"
+    },
+    {
+      "kind": "live_mobile",
+      "path": "/request/purchase",
+      "width": 320,
+      "result": "pass"
+    },
+    {
+      "kind": "fixture_submit",
+      "result": "pass"
+    }
+  ],
+  "screenshots": [
+    "01-home",
+    "02-asset-public",
+    "03-repair",
+    "04-success",
+    "05-service",
+    "06-request-signature",
+    "07-email",
+    "08-borrow",
+    "09-purchase",
+    "10-track",
+    "11-approval",
+    "12-completion-approval",
+    "13-login",
+    "14-dashboard",
+    "15-tickets",
+    "16-ticket",
+    "17-ticket-completion",
+    "18-archive",
+    "19-borrow-approval",
+    "20-borrow-list",
+    "21-borrow-record",
+    "31-borrow-return",
+    "22-documents",
+    "30-document-editor",
+    "23-assets",
+    "24-asset-detail",
+    "25-qr",
+    "26-employees",
+    "27-admins",
+    "28-nas",
+    "29-mobile"
+  ],
+  "errors": [],
+  "unexpected": []
+}

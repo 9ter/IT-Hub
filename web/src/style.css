@@ -4,10 +4,21 @@
 @import '@fontsource/noto-sans-thai/600.css';
 @import '@fontsource/noto-sans-thai/700.css';
 
+/* Dark colors apply to screens; printed forms keep their original colors. */
+@custom-variant dark {
+  @media screen {
+    &:where(.dark, .dark *) {
+      @slot;
+    }
+  }
+}
+
 @theme {
   --font-sans: 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
   --color-brand-50: #eff6ff;
   --color-brand-100: #dbeafe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
   --color-brand-500: #3b82f6;
   --color-brand-600: #2563eb;
   --color-brand-700: #1d4ed8;
@@ -18,9 +29,11 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    color-scheme: light;
+    @variant dark { color-scheme: dark; }
   }
   body {
-    @apply bg-slate-50 text-slate-800 antialiased;
+    @apply bg-slate-50 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-200;
   }
   [v-cloak] {
     display: none;
@@ -34,36 +47,38 @@
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800;
   }
   .btn-primary {
     @apply btn bg-brand-700 text-white hover:bg-brand-800;
   }
   .btn-secondary {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
   }
   .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700;
   }
   .btn-ghost {
-    @apply btn text-slate-600 hover:bg-slate-100;
+    @apply btn text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700;
   }
   .label {
-    @apply mb-1.5 block text-sm font-medium text-slate-700;
+    @apply mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200;
   }
   .input {
     @apply block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400
       focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20 focus:outline-none disabled:bg-slate-100;
+    @apply dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-brand-500 dark:disabled:bg-slate-800;
   }
   .input-error {
-    @apply border-red-400 focus:border-red-500 focus:ring-red-500/20;
+    @apply border-red-400 focus:border-red-500 focus:ring-red-500/20 dark:border-red-400 dark:focus:border-red-500;
   }
   .field-error {
-    @apply mt-1 text-sm text-red-600;
+    @apply mt-1 text-sm text-red-600 dark:text-red-400;
   }
   .choice {
     @apply flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[15px] transition
       hover:border-brand-500 has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50;
+    @apply dark:border-slate-600 dark:bg-slate-900 dark:hover:border-brand-500 dark:has-[:checked]:border-brand-500 dark:has-[:checked]:bg-brand-900/50;
   }
   .choice input {
     @apply mt-1 size-4 shrink-0 accent-brand-700;
@@ -75,13 +90,13 @@
     @apply w-full text-left text-sm;
   }
   .table th {
-    @apply border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase;
+    @apply border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400;
   }
   .table td {
-    @apply border-b border-slate-100 px-4 py-3 align-top;
+    @apply border-b border-slate-100 px-4 py-3 align-top dark:border-slate-700;
   }
   .table tbody tr:hover td {
-    @apply bg-slate-50;
+    @apply bg-slate-50 dark:bg-slate-700;
   }
 }
 
@@ -91,5 +106,9 @@
   }
   body {
     background: #fff;
+    color: #1e293b;
+  }
+  html {
+    color-scheme: light;
   }
 }

@@ -65,6 +65,7 @@ export const photoUrl = (ticketId: number) => `${BASE}/admin/tickets/${ticketId}
 
 // ---------- Types ----------
 export type TicketType = 'repair' | 'service' | 'email' | 'borrow' | 'purchase'
+export interface BorrowItem {device_kind:'notebook'|'other';item:string;quantity:number}
 export type TicketStatus = 'new' | 'accepted' | 'in_progress' | 'waiting' | 'done' | 'rejected' | 'cancelled'
 export type Priority = 'low' | 'normal' | 'high' | 'urgent'
 export type AssetStatus = 'active' | 'repair' | 'spare' | 'retired'
@@ -89,6 +90,8 @@ export interface Admin {
 }
 
 export interface AdminRow extends Admin {
+  signature_data: string | null
+  signature_updated_at: string | null
   is_active: number
   last_login_at: string | null
   created_at: string
@@ -119,6 +122,8 @@ export interface TicketLog {
 }
 
 export interface PublicTicket {
+  borrow_approval_status?: 'pending'|'approved'|'rejected'
+  approval_status: 'pending' | 'approved' | 'rejected' | null
   ticket_no: string
   type: TicketType
   title: string
@@ -133,6 +138,7 @@ export interface PublicTicket {
 }
 
 export interface TicketRow {
+  nas_archive_status?: string|null
   id: number
   ticket_no: string
   type: TicketType
@@ -147,7 +153,23 @@ export interface TicketRow {
   assigned_name: string | null
 }
 
+export interface ArchiveStatus {id:number;status:string;filename:string|null;relative_path?:string|null;attempts:number;sent_at:string|null;last_error:string|null;created_at:string}
 export interface Ticket extends TicketRow {
+  nas_archive?: ArchiveStatus|null
+  borrow_approval?: {status:'pending'|'approved'|'rejected';admin_id:number|null;admin_name:string|null;decision_note:string|null;decided_at:string|null;document_id:number|null;document_no:string|null;document_status:string|null}
+  receipt_signature?: Pick<ItSignature,'admin_id'|'signer_name'|'signature_data'|'signed_at'> | null
+  purchase_fields?: PurchaseFields
+  purchase_approvals?: Partial<Record<PurchaseRole,(Approval & {current:boolean})|null>>
+  purchase_signing_roles?: Record<PurchaseRole,{stage:string;label:string}>
+  print_form?: import('./documents').DocumentDefinition
+  it_signature: ItSignature | null
+  completion_required: boolean
+  completion_revision: number
+  completion_approval: Approval | null
+  completion_approval_current: boolean
+  default_completion_approver_id: number | null
+  requester_signature: RequesterSignature | null
+  approval: Approval | null
   description: string | null
   details: Record<string, unknown>
   asset_id: number | null
@@ -163,6 +185,66 @@ export interface Ticket extends TicketRow {
   started_at: string | null
   updated_at: string
   logs: TicketLog[]
+}
+
+export interface Approver {
+  id: number
+  full_name: string
+  company: string
+  companies?: string[]
+  department: string | null
+  position: string | null
+}
+
+export interface RequesterSignature {
+  requester_name: string
+  signature_data: string
+  signed_at: string
+}
+
+export interface ItSignature {
+  admin_id: number
+  signer_name: string
+  signature_data: string
+  signed_at: string
+  work_revision: number
+}
+
+export interface Employee extends Approver {
+  member_ids?: number[]
+  source_user_id: number | null
+  source_company_id: number | null
+  email: string | null
+  phone: string | null
+  is_active: number
+  can_approve: number
+  synced_at: string | null
+}
+
+export interface Approval {
+  stage: 'request' | 'completion' | 'purchase_director' | 'purchase_purchasing' | 'purchase_md'
+  attempt: number
+  work_revision: number | null
+  resolution_snapshot: string | null
+  employee_id: number
+  approver_name: string
+  approver_email: string
+  approver_company: string
+  approver_department: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  mail_status: 'pending' | 'sent' | 'failed'
+  mail_attempts: number
+  mail_sent_at: string | null
+  mail_error: string | null
+  expires_at: string | null
+  signed_at: string | null
+  signature_data: string | null
+  decision_note: string | null
+}
+
+export type PurchaseRole = 'director'|'purchasing'|'md'
+export interface PurchaseFields {
+  vendor:string|null;vendor_phone:string|null;quotation:string|null;quotation_date:string|null;amount:string|null;vat:string|null
 }
 
 export interface AssetRow {
