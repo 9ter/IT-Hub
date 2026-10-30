@@ -31,10 +31,10 @@ try{
     verify($t['details']['approver_name']==='Fixture Head'&&$t['approval']['approver_email']==='head@example.com','Recipient identity comes from directory');
     verify($t['asset_id']===null&&$t['asset_code']===null&&$t['location']===null,'Purchase never acquires QR context');
     verify($t['priority']==='high'&&$t['details']['need_by']===$body['need_by'],'Urgency and date preserved');
-    verify($t['print_form']['code']==='FM-IT-007'&&$t['print_form']['orientation']==='portrait'&&str_contains($t['print_form']['rev'],'Rev.02'),'Direct print receives FM007 source template');
+    verify($t['print_form']['code']==='FM-IT-007'&&$t['print_form']['orientation']==='portrait'&&str_contains($t['print_form']['rev'],'Rev.03'),'Direct print receives FM007 source template');
     verify(count($t['print_form']['roles'])===6&&$t['print_form']['roles'][1]['label']===ticket_approval_role('purchase'),'Source signature slots and specific head role supplied');
     $mail=json_decode(file_get_contents($capture),true);$token=$mail['token'];
-    verify(str_contains($mail['body'],'FM-IT-007 Rev.02')&&!str_contains($mail['body'],'FM-IT-010'),'Email names correct form');
+    verify(str_contains($mail['body'],'FM-IT-007 Rev.03')&&!str_contains($mail['body'],'FM-IT-010'),'Email names correct form');
     foreach(['Fixture CPU','32 GB','1 TB','27 inches','Fixture specification','2026-11-15','Fixture purchase purpose','ผู้มีอำนาจอนุมัติต้นสังกัด'] as $expected)verify(str_contains($mail['body'],$expected),'Email includes purchase context '.$expected);
     verify(str_contains($mail['to'],'head@example.com')&&str_contains($mail['from'],'it-hub@example.com'),'Correct sender and chosen recipient');
     $s=$pdo->prepare('SELECT token_hash FROM ticket_approvals WHERE ticket_id=?');$s->execute([$id]);verify($s->fetchColumn()===hash('sha256',$token),'Only hashed token stored');

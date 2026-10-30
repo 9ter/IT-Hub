@@ -110,7 +110,7 @@ function approval_send(int $ticketId, bool $resend = false, ?int $employeeId = n
             $mail->addAddress($a['approver_email'], $a['approver_name']);
             $label = $purchaseExtra?purchase_stage_label($stage):($stage === 'completion' ? 'ผอ./ผจก. ฝ่ายสนับสนุนและติดตั้ง' : ticket_approval_role($ticket['type']));
             $mail->Subject = '[IT Hub] ' . ($stage === 'completion' ? 'ขอลงนามรับรองผลก่อนปิดงาน ' : 'ขอลงนามอนุมัติ ') . $ticket['ticket_no'];
-            $form = $ticket['type']==='purchase'?'FM-IT-007 Rev.02':'FM-IT-010 Rev.01';
+            $form = $ticket['type']==='purchase'?'FM-IT-007 Rev.03':'FM-IT-010 Rev.02';
             $summary = ticket_approval_summary($ticket);
             $work = $stage === 'completion' ? "\n\nผลการดำเนินการที่ขอรับรองก่อนปิดงาน:\n{$a['resolution_snapshot']}" : '';
             if($purchaseExtra){

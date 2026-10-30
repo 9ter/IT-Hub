@@ -65,9 +65,13 @@ function toggleAll() {
   selected.value = s
 }
 
-function printQr() {
-  const query = selected.value.size ? { ids: [...selected.value].join(',') } : Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''))
-  window.open(router.resolve({ name: 'qr-print', query }).href, '_blank')
+function printQr(id?: number) {
+  const query = id
+    ? { ids: String(id), auto_print: '1' }
+    : selected.value.size
+      ? { ids: [...selected.value].join(',') }
+      : Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''))
+  window.open(router.resolve({ name: 'qr-print', query }).href, '_blank', 'noopener')
 }
 
 const statusTone: Record<string, string> = {
@@ -85,7 +89,7 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
     <div class="flex flex-wrap gap-2">
       <button class="btn-secondary" @click="showImport = true"><Icon name="upload" :size="16" /> Import Excel</button>
       <RouterLink :to="{name:'document-new',query:{form:'FM-IT-001',company:filters.company||'ATS'}}" class="btn-secondary">เอกสาร FM-IT-001</RouterLink>
-      <button class="btn-secondary" @click="printQr"><Icon name="qr" :size="16" /> พิมพ์ QR {{ selected.size ? `(${selected.size})` : 'ตามตัวกรอง' }}</button>
+      <button class="btn-secondary" @click="printQr()"><Icon name="qr" :size="16" /> พิมพ์ QR {{ selected.size ? `(${selected.size})` : 'ตามตัวกรอง' }}</button>
       <RouterLink :to="{ name: 'asset-new' }" class="btn-primary"><Icon name="plus" :size="16" /> เพิ่มอุปกรณ์</RouterLink>
     </div>
   </div>
@@ -126,6 +130,7 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
             <th>ผู้ใช้งาน</th>
             <th>หน่วยงาน</th>
             <th>สถานะ</th>
+            <th class="w-28 text-right">QR</th>
           </tr>
         </thead>
         <tbody :class="loading && 'opacity-50'">
@@ -148,9 +153,14 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
               <span :class="['rounded-full px-2 py-0.5 text-xs font-semibold', statusTone[a.status]]">{{ meta?.asset_statuses[a.status] }}</span>
               <p v-if="a.open_tickets" class="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">งานค้าง {{ a.open_tickets }}</p>
             </td>
+            <td class="whitespace-nowrap text-right" @click.stop>
+              <button type="button" class="btn-secondary px-3 py-2 text-xs" :aria-label="`พิมพ์ QR ${a.asset_code}`" @click="printQr(a.id)">
+                <Icon name="printer" :size="16" /> พิมพ์ QR
+              </button>
+            </td>
           </tr>
           <tr v-if="result && !result.data.length">
-            <td colspan="6" class="py-12 text-center text-slate-400">ไม่พบอุปกรณ์</td>
+            <td colspan="7" class="py-12 text-center text-slate-400">ไม่พบอุปกรณ์</td>
           </tr>
         </tbody>
       </table>

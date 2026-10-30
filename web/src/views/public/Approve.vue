@@ -73,7 +73,7 @@ async function submit() {
 <template>
   <PublicShell>
     <h1 class="mb-2 text-xl font-bold">ลงนาม{{ signerLabel }}</h1>
-    <p class="mb-5 text-sm text-slate-500 dark:text-slate-400">{{isPurchase?'ใบขอซื้อครุภัณฑ์คอมพิวเตอร์ · FM-IT-007 Rev.02':'แบบฟอร์มร้องขอดำเนินการด้าน IT · FM-IT-010 Rev.01'}}</p>
+    <p class="mb-5 text-sm text-slate-500 dark:text-slate-400">{{isPurchase?'ใบขอซื้อครุภัณฑ์คอมพิวเตอร์ · FM-IT-007 Rev.03':'แบบฟอร์มร้องขอดำเนินการด้าน IT · FM-IT-010 Rev.02'}}</p>
     <p v-if="loading" class="card p-6">กำลังโหลดคำขอ...</p>
     <p v-else-if="error" class="rounded-xl bg-red-50 dark:bg-red-900/40 p-5 text-red-700 dark:text-red-300">{{ error }}</p>
     <section v-else-if="result" class="card space-y-3 p-6 text-center">

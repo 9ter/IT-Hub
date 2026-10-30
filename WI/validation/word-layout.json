@@ -1,0 +1,227 @@
+{
+  "date": "2026-10-29",
+  "source": "WI-IT-003.docx",
+  "renderer": "LibreOffice 26.2 / TH Sarabun New",
+  "pages": 33,
+  "sections": 25,
+  "embedded_images": 21,
+  "formatting_matches_template": [
+    "word/styles.xml",
+    "word/fontTable.xml",
+    "word/theme/theme1.xml",
+    "section page geometry"
+  ],
+  "blank_signoff_values": true,
+  "toc_and_footers_verified": true,
+  "pages_checked": [
+    {
+      "page": 1,
+      "title": "คู่มือการใช้งานระบบ IT Hub",
+      "body_bottom_pt": 539.96,
+      "overflow": false
+    },
+    {
+      "page": 2,
+      "title": "สารบัญและวิธีใช้คู่มือ",
+      "body_bottom_pt": 771.9,
+      "overflow": false
+    },
+    {
+      "page": 3,
+      "title": "1. วัตถุประสงค์และขอบเขต",
+      "body_bottom_pt": 435.51,
+      "overflow": false
+    },
+    {
+      "page": 4,
+      "title": "2. คำจำกัดความและสถานะ",
+      "body_bottom_pt": 549.56,
+      "overflow": false
+    },
+    {
+      "page": 5,
+      "title": "3. ความรับผิดชอบและสิทธิ์",
+      "body_bottom_pt": 484.76,
+      "overflow": false
+    },
+    {
+      "page": 6,
+      "title": "4. ภาพรวมและจุดควบคุม",
+      "body_bottom_pt": 569.86,
+      "overflow": false
+    },
+    {
+      "page": 7,
+      "title": "5.1 เปิดระบบ ค้นหา และสแกน QR",
+      "body_bottom_pt": 602.16,
+      "overflow": false
+    },
+    {
+      "page": 8,
+      "title": "5.2 แจ้งซ่อมและเก็บเลขที่คำขอ",
+      "body_bottom_pt": 602.16,
+      "overflow": false
+    },
+    {
+      "page": 9,
+      "title": "5.2 แจ้งซ่อมและเก็บเลขที่คำขอ (ต่อ)",
+      "body_bottom_pt": 616.26,
+      "overflow": false
+    },
+    {
+      "page": 10,
+      "title": "5.3 ร้องขอ IT และลงนามผู้ร้องขอ",
+      "body_bottom_pt": 620.06,
+      "overflow": false
+    },
+    {
+      "page": 11,
+      "title": "5.3 ร้องขอ IT และลงนามผู้ร้องขอ (ต่อ)",
+      "body_bottom_pt": 598.36,
+      "overflow": false
+    },
+    {
+      "page": 12,
+      "title": "5.4 ขอใช้ E-mail บริษัท",
+      "body_bottom_pt": 637.96,
+      "overflow": false
+    },
+    {
+      "page": 13,
+      "title": "5.5 ขอเบิก–ยืมอุปกรณ์",
+      "body_bottom_pt": 620.06,
+      "overflow": false
+    },
+    {
+      "page": 14,
+      "title": "5.6 ขอซื้อครุภัณฑ์คอมพิวเตอร์",
+      "body_bottom_pt": 620.06,
+      "overflow": false
+    },
+    {
+      "page": 15,
+      "title": "5.7 ติดตามสถานะคำขอ",
+      "body_bottom_pt": 620.06,
+      "overflow": false
+    },
+    {
+      "page": 16,
+      "title": "5.8 อนุมัติคำขอจากอีเมล",
+      "body_bottom_pt": 620.06,
+      "overflow": false
+    },
+    {
+      "page": 17,
+      "title": "5.9 รับรองผล FM-IT-010",
+      "body_bottom_pt": 620.06,
+      "overflow": false
+    },
+    {
+      "page": 18,
+      "title": "5.10 เข้าสู่ระบบ Admin และรับเรื่อง",
+      "body_bottom_pt": 620.06,
+      "overflow": false
+    },
+    {
+      "page": 19,
+      "title": "5.11 บันทึกผล ลงนาม IT และปิดงาน",
+      "body_bottom_pt": 612.26,
+      "overflow": false
+    },
+    {
+      "page": 20,
+      "title": "5.12 อนุมัติเบิก–ยืมและบันทึกคืน",
+      "body_bottom_pt": 637.96,
+      "overflow": false
+    },
+    {
+      "page": 21,
+      "title": "5.12 อนุมัติเบิก–ยืมและบันทึกคืน (ต่อ)",
+      "body_bottom_pt": 532.56,
+      "overflow": false
+    },
+    {
+      "page": 22,
+      "title": "5.13 จัดการและพิมพ์เอกสารฝ่าย IT",
+      "body_bottom_pt": 620.06,
+      "overflow": false
+    },
+    {
+      "page": 23,
+      "title": "5.13 จัดการและพิมพ์เอกสารฝ่าย IT (ต่อ)",
+      "body_bottom_pt": 574.16,
+      "overflow": false
+    },
+    {
+      "page": 24,
+      "title": "5.14 ทะเบียนอุปกรณ์และ Import Excel",
+      "body_bottom_pt": 696.16,
+      "overflow": false
+    },
+    {
+      "page": 25,
+      "title": "5.14 ทะเบียนอุปกรณ์และ Import Excel (ต่อ)",
+      "body_bottom_pt": 527.41,
+      "overflow": false
+    },
+    {
+      "page": 26,
+      "title": "5.15 พิมพ์ QR และแบบฟอร์ม",
+      "body_bottom_pt": 637.96,
+      "overflow": false
+    },
+    {
+      "page": 27,
+      "title": "5.16 พนักงาน บัญชี และลายเซ็น IT",
+      "body_bottom_pt": 637.96,
+      "overflow": false
+    },
+    {
+      "page": 28,
+      "title": "5.17 Map NAS และตรวจการส่ง PDF",
+      "body_bottom_pt": 691.66,
+      "overflow": false
+    },
+    {
+      "page": 29,
+      "title": "5.17 Map NAS และตรวจการส่ง PDF (ต่อ)",
+      "body_bottom_pt": 599.66,
+      "overflow": false
+    },
+    {
+      "page": 30,
+      "title": "5.18 แก้ปัญหาและตรวจงานประจำวัน",
+      "body_bottom_pt": 704.06,
+      "overflow": false
+    },
+    {
+      "page": 31,
+      "title": "6. แบบฟอร์มและหลักฐาน",
+      "body_bottom_pt": 551.76,
+      "overflow": false
+    },
+    {
+      "page": 32,
+      "title": "7. เอกสารอ้างอิงและประวัติแก้ไข",
+      "body_bottom_pt": 516.26,
+      "overflow": false
+    },
+    {
+      "page": 33,
+      "title": "ภาคผนวก ก การฝึกตรวจรับ",
+      "body_bottom_pt": 551.76,
+      "overflow": false
+    }
+  ],
+  "visual_review_pages": [
+    1,
+    2,
+    6,
+    10,
+    24,
+    25,
+    30,
+    33
+  ],
+  "system_tests_rerun": false
+}

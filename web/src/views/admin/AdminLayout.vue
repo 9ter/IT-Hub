@@ -52,7 +52,7 @@ async function logout() {
         open ? 'translate-x-0' : '-translate-x-full',
       ]"
     >
-      <RouterLink to="/admin" class="flex h-16 items-center gap-2.5 px-5 font-bold text-white" aria-label="IT Hub Admin">
+      <RouterLink to="/admin" class="flex h-16 items-center gap-2.5 px-5 font-bold text-white" aria-label="IT Hub Admin" @click="open = false">
         <img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="h-12 w-auto rounded bg-white p-1 object-contain" />
         <span class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300">ADMIN</span>
       </RouterLink>
@@ -61,11 +61,12 @@ async function logout() {
           v-for="item in nav"
           :key="item.to"
           :to="item.to"
+          @click="open = false"
           :class="['flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition', isActive(item) ? 'bg-white/10 text-white' : 'hover:bg-white/5 hover:text-white']"
         >
           <Icon :name="item.icon" :size="18" /> {{ item.label }}
         </RouterLink>
-        <RouterLink to="/" target="_blank" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-white/5 hover:text-white">
+        <RouterLink to="/" target="_blank" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-white/5 hover:text-white" @click="open = false">
           <Icon name="home" :size="18" /> หน้าผู้ใช้ทั่วไป
         </RouterLink>
       </nav>

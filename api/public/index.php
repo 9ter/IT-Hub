@@ -115,6 +115,7 @@ $r->get('/admin/assets', function () {
     require_admin();
     return asset_list($_GET);
 });
+$r->get('/admin/assets/check-code', function () { require_admin(); return asset_check_code($_GET); });
 $r->get('/admin/assets/import/template', function () { require_admin(); asset_import_template(); });
 $r->post('/admin/assets/import/preview', function () { require_admin(); return asset_import_upload($_FILES['file'] ?? []); });
 $r->post('/admin/assets/import/apply', function () { require_admin(); return asset_import_upload($_FILES['file'] ?? [], true); });

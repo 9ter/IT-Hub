@@ -59,11 +59,36 @@ function asset_detail(int $id): array
     return $asset;
 }
 
+function asset_code_input(Input $in): string
+{
+    $code = strtoupper((string)$in->str('asset_code', 30, true, 'หมายเลขทะเบียน'));
+    if ($code !== '' && !preg_match('/^[A-Z0-9][A-Z0-9._-]*$/', $code)) {
+        $in->error('asset_code', 'หมายเลขทะเบียนใช้ได้เฉพาะ A-Z, 0-9, - . _');
+    }
+    return $code;
+}
+
+function asset_code_available(string $code, ?int $excludeId = null): bool
+{
+    $dup = db()->prepare('SELECT id FROM assets WHERE asset_code = ? AND id <> ? LIMIT 1');
+    $dup->execute([$code, $excludeId ?? 0]);
+    return $dup->fetchColumn() === false;
+}
+
+function asset_check_code(array $query): array
+{
+    $in = new Input($query);
+    $code = asset_code_input($in);
+    $excludeId = $in->int('exclude_id', 1, PHP_INT_MAX, false, 'อุปกรณ์');
+    $in->check();
+    return ['available' => asset_code_available($code, $excludeId), 'asset_code' => $code];
+}
+
 function asset_data(array $body): array
 {
     $in = new Input($body);
     $row = [
-        'asset_code' => strtoupper((string)$in->str('asset_code', 30, true, 'หมายเลขทะเบียน')),
+        'asset_code' => asset_code_input($in),
         'category_id' => $in->int('category_id', 1, PHP_INT_MAX, false, 'หมวด'),
         'company' => $in->str('company', 20) ?? 'ATS',
         'brand_model' => $in->str('brand_model', 150, true, 'ยี่ห้อ/รุ่น'),
@@ -79,9 +104,6 @@ function asset_data(array $body): array
         'specs' => $in->str('specs', 5000),
         'notes' => $in->str('notes', 5000),
     ];
-    if ($row['asset_code'] !== '' && !preg_match('/^[A-Z0-9][A-Z0-9._-]*$/', $row['asset_code'])) {
-        $in->error('asset_code', 'หมายเลขทะเบียนใช้ได้เฉพาะ A-Z, 0-9, - . _');
-    }
     $in->check();
     return $row;
 }
@@ -89,20 +111,27 @@ function asset_data(array $body): array
 function asset_save(?int $id, array $body): array
 {
     $row = asset_data($body);
-    $dup = db()->prepare('SELECT id FROM assets WHERE asset_code = ? AND id <> ?');
-    $dup->execute([$row['asset_code'], $id ?? 0]);
-    if ($dup->fetchColumn()) {
+    if (!asset_code_available($row['asset_code'], $id)) {
         fail('ข้อมูลไม่ครบหรือไม่ถูกต้อง', 422, ['asset_code' => 'หมายเลขทะเบียนนี้มีอยู่แล้ว']);
     }
 
-    if ($id === null) {
-        db()->prepare('INSERT INTO assets (' . implode(', ', ASSET_FIELDS) . ') VALUES (' . implode(', ', array_fill(0, count(ASSET_FIELDS), '?')) . ')')
-            ->execute(array_map(fn($f) => $row[$f], ASSET_FIELDS));
-        $id = (int)db()->lastInsertId();
-    } else {
-        asset_detail($id); // 404 ถ้าไม่มี
-        db()->prepare('UPDATE assets SET ' . implode(', ', array_map(fn($f) => "$f = ?", ASSET_FIELDS)) . ' WHERE id = ?')
-            ->execute([...array_map(fn($f) => $row[$f], ASSET_FIELDS), $id]);
+    try {
+        if ($id === null) {
+            db()->prepare('INSERT INTO assets (' . implode(', ', ASSET_FIELDS) . ') VALUES (' . implode(', ', array_fill(0, count(ASSET_FIELDS), '?')) . ')')
+                ->execute(array_map(fn($f) => $row[$f], ASSET_FIELDS));
+            $id = (int)db()->lastInsertId();
+        } else {
+            asset_detail($id); // 404 ถ้าไม่มี
+            db()->prepare('UPDATE assets SET ' . implode(', ', array_map(fn($f) => "$f = ?", ASSET_FIELDS)) . ' WHERE id = ?')
+                ->execute([...array_map(fn($f) => $row[$f], ASSET_FIELDS), $id]);
+        }
+    } catch (PDOException $e) {
+        // Another request can claim the code after the availability check.
+        if ((int)($e->errorInfo[1] ?? 0) === 1062
+            && preg_match("/for key ['`](?:[^'`]*\\.)?uq_assets_code['`]/i", (string)($e->errorInfo[2] ?? ''))) {
+            fail('ข้อมูลไม่ครบหรือไม่ถูกต้อง', 422, ['asset_code' => 'หมายเลขทะเบียนนี้มีอยู่แล้ว']);
+        }
+        throw $e;
     }
     return asset_detail($id);
 }

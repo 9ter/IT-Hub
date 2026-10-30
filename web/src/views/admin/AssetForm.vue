@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError, type Asset } from '@/api'
 import Icon from '@/components/Icon.vue'
@@ -29,6 +29,40 @@ const f = reactive({
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 const loaded = ref(!props.id)
+const codeInput = ref<HTMLInputElement>()
+const codeStatus = ref<'idle' | 'checking' | 'available' | 'duplicate' | 'failed'>('idle')
+const codeError = computed(() => errors.value.asset_code || (codeStatus.value === 'duplicate' ? 'หมายเลขทะเบียนนี้มีอยู่แล้ว กรุณาใช้หมายเลขอื่น' : ''))
+let codeTimer: ReturnType<typeof setTimeout> | undefined
+let codeVersion = 0
+
+watch([() => f.asset_code, loaded], ([value, ready]) => {
+  clearTimeout(codeTimer)
+  const version = ++codeVersion
+  codeStatus.value = 'idle'
+  delete errors.value.asset_code
+  const code = value.trim().toUpperCase()
+  if (!ready || !code) return
+  if (code.length > 30 || !/^[A-Z0-9][A-Z0-9._-]*$/.test(code)) {
+    errors.value.asset_code = code.length > 30 ? 'หมายเลขทะเบียน ยาวเกิน 30 ตัวอักษร' : 'หมายเลขทะเบียนใช้ได้เฉพาะ A-Z, 0-9, - . _'
+    return
+  }
+  codeStatus.value = 'checking'
+  codeTimer = setTimeout(async () => {
+    try {
+      const result = await api.get<{ available: boolean }>('/admin/assets/check-code', { asset_code: code, exclude_id: props.id })
+      if (version === codeVersion) codeStatus.value = result.available ? 'available' : 'duplicate'
+    } catch (e) {
+      if (version !== codeVersion) return
+      codeStatus.value = 'failed'
+      if (e instanceof ApiError && e.errors.asset_code) errors.value.asset_code = e.errors.asset_code
+    }
+  }, 350)
+}, { flush: 'sync' })
+
+onBeforeUnmount(() => {
+  clearTimeout(codeTimer)
+  codeVersion++
+})
 
 if (props.id) {
   api.get<Asset>(`/admin/assets/${props.id}`).then((a) => {
@@ -40,22 +74,28 @@ if (props.id) {
 }
 
 async function save() {
+  if (saving.value || codeStatus.value === 'checking') return
+  if (codeError.value) {
+    codeInput.value?.focus()
+    return
+  }
   saving.value = true
   errors.value = {}
   try {
-    const body = { ...f, category_id: f.category_id === '' ? null : Number(f.category_id) }
+    const body = { ...f, asset_code: f.asset_code.trim().toUpperCase(), category_id: f.category_id === '' ? null : Number(f.category_id) }
     const asset = props.id ? await api.put<Asset>(`/admin/assets/${props.id}`, body) : await api.post<Asset>('/admin/assets', body)
     toast('บันทึกแล้ว')
     router.replace({ name: 'asset-detail', params: { id: asset.id } })
   } catch (e) {
     if (e instanceof ApiError) errors.value = e.errors
+    if (errors.value.asset_code) codeInput.value?.focus()
     toast((e as Error).message, 'error')
   } finally {
     saving.value = false
   }
 }
 
-const cls = (k: string) => ['input', errors.value[k] && 'input-error']
+const cls = (k: string) => ['input', (k === 'asset_code' ? codeError.value : errors.value[k]) && 'input-error']
 </script>
 
 <template>
@@ -68,8 +108,10 @@ const cls = (k: string) => ['input', errors.value[k] && 'input-error']
     <div class="grid gap-4 sm:grid-cols-3">
       <div>
         <label class="label" for="asset_code">หมายเลขทะเบียน <span class="text-red-500 dark:text-red-400">*</span></label>
-        <input id="asset_code" v-model="f.asset_code" :class="[...cls('asset_code'), 'font-mono uppercase']" placeholder="MD-01-001" />
-        <p v-if="errors.asset_code" class="field-error">{{ errors.asset_code }}</p>
+        <input id="asset_code" ref="codeInput" v-model="f.asset_code" :class="[...cls('asset_code'), 'font-mono uppercase']" placeholder="MD-01-001" maxlength="30" required autocomplete="off" :readonly="saving" :aria-invalid="!!codeError" aria-describedby="asset-code-feedback" />
+        <p id="asset-code-feedback" aria-live="polite" :class="codeError ? 'field-error' : ['mt-1 text-xs', codeStatus === 'available' ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400']">
+          {{ codeError || (codeStatus === 'checking' ? 'กำลังตรวจสอบหมายเลขทะเบียน...' : codeStatus === 'available' ? 'หมายเลขทะเบียนนี้ใช้ได้' : codeStatus === 'failed' ? 'ตรวจสอบไม่ได้ในขณะนี้ ระบบจะตรวจซ้ำเมื่อบันทึก' : 'หมายเลขทะเบียนต้องไม่ซ้ำกับอุปกรณ์อื่น รวมทุกบริษัท') }}
+        </p>
       </div>
       <div>
         <label class="label" for="category_id">ประเภท</label>
@@ -150,7 +192,7 @@ const cls = (k: string) => ['input', errors.value[k] && 'input-error']
 
     <div class="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-5">
       <button type="button" class="btn-secondary" @click="router.back()">ยกเลิก</button>
-      <button class="btn-primary" :disabled="saving">{{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}</button>
+      <button class="btn-primary" :disabled="saving || codeStatus === 'checking' || !!codeError">{{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}</button>
     </div>
   </form>
   <div v-else class="card mt-6 h-96 max-w-3xl animate-pulse" />

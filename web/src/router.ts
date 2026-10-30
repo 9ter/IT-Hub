@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ref } from 'vue'
 import { checkAuth } from './store'
+
+export const navigationErrorHref = ref<string | null>(null)
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -48,6 +51,15 @@ router.beforeEach(async (to) => {
   } catch {
     return { name: 'login', query: { next: to.fullPath } }
   }
+})
+
+router.onError((error, to) => {
+  console.error('Unable to open IT Hub page', error)
+  navigationErrorHref.value = router.resolve(to.fullPath).href
+})
+
+router.afterEach((_to, _from, failure) => {
+  if (!failure) navigationErrorHref.value = null
 })
 
 export default router

@@ -1,210 +1,18 @@
 {
-  "date": "2026-10-28",
-  "document_updated": "2026-10-29",
+  "date": "2026-10-29",
   "document_code": "WI-IT-003",
   "document_revision": "00",
-  "test_suites": 12,
-  "automated_checks": 568,
-  "browser_checks": 28,
-  "pdfs": [
-    {
-      "file": "WI-IT-003.pdf",
-      "pages": 27,
-      "size": "A4",
-      "searchable_thai": true,
-      "blank_pages": 0
-    },
-    {
-      "file": "SYSTEM-CHECK-2026-10-28.pdf",
-      "pages": 4,
-      "size": "A4",
-      "searchable_thai": true,
-      "blank_pages": 0
-    }
-  ],
-  "screenshots": [
-    {
-      "file": "01-home.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "02-asset-public.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "03-repair.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "04-success.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "05-service.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "06-request-signature.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "07-email.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "08-borrow.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "09-purchase.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "10-track.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "11-approval.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "12-completion-approval.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "13-login.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "14-dashboard.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "15-tickets.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "16-ticket.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "17-ticket-completion.png",
-      "width": 643,
-      "height": 254
-    },
-    {
-      "file": "18-archive.png",
-      "width": 643,
-      "height": 220
-    },
-    {
-      "file": "19-borrow-approval.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "20-borrow-list.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "21-borrow-record.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "22-documents.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "23-assets.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "24-asset-detail.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "25-qr.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "26-employees.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "27-admins.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "28-nas.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "29-mobile.png",
-      "width": 390,
-      "height": 844
-    },
-    {
-      "file": "30-document-editor.png",
-      "width": 1280,
-      "height": 900
-    },
-    {
-      "file": "31-borrow-return.png",
-      "width": 900,
-      "height": 284
-    }
-  ],
-  "offline_html": true,
-  "visual_review": {
-    "wi_pages": [
-      1,
-      2,
-      6,
-      14,
-      17,
-      19,
-      25,
-      26,
-      27
-    ],
-    "report_pages": [
-      1,
-      2,
-      3,
-      4
-    ],
-    "note": "Original content reviewed on 2026-10-28; revised WI-IT-003 Rev.00 cover visually checked on 2026-10-29 with blank preparer/reviewer fields."
-  },
+  "template": "WI-IT-002 E-Procurement.docx",
+  "template_sha256": "f9b6e8b422f9e0f8e2526b0c180cd6d9e5f15f2a3e8a66c59e635c7a8a6ba6ba",
+  "pdf_pages": 33,
+  "historical_report_date": "2026-10-28",
+  "historical_report_pages": 4,
+  "system_tests_rerun": false,
   "files": [
     {
       "file": "README.md",
-      "bytes": 4215,
-      "sha256": "a643c6a12baa640a1c2d2fb2a2b1d58dd7d7794fc79dc6b313784120f4db2897"
+      "bytes": 5441,
+      "sha256": "31ddcb8bfaefeb9c6a657c64d157e2a53b48fcbe0c9ff866173e36db94f80561"
     },
     {
       "file": "SYSTEM-CHECK-2026-10-28.html",
@@ -222,19 +30,19 @@
       "sha256": "e084eee07802bfdc014864956ad3f312322f947b210e13ca0d1fe6c32674a630"
     },
     {
-      "file": "WI-IT-003.html",
-      "bytes": 2384572,
-      "sha256": "533c9b1fa39878f60a3163294d1ed23a733c4f23c8b2642a2d37ca9e0162a61b"
+      "file": "WI-IT-003.docx",
+      "bytes": 1499482,
+      "sha256": "bee66eba8c309ef111c2f98906730d76d67a294829dabdb2c1bdf1638fbd5bd9"
     },
     {
       "file": "WI-IT-003.md",
-      "bytes": 51831,
-      "sha256": "915ba11b9ed703ee978f765127f9e4bf367d2a1016b52fea8e02b1e88c99aab9"
+      "bytes": 72561,
+      "sha256": "b737d14ef5a226f94ccfa2036a28568856797268db63ded8a24ce39ffe2b2f1e"
     },
     {
       "file": "WI-IT-003.pdf",
-      "bytes": 1614128,
-      "sha256": "9ba7996e9cf2045ee7b30b4c2c2a9c1c74643dfbbe2ddb45ffa710ba23e60d8e"
+      "bytes": 2155898,
+      "sha256": "35025079fde97c914d439d747c650ae4cafb9bc17dcbd3e337c28547f7f4d480"
     },
     {
       "file": "fonts/OFL.txt",
@@ -418,18 +226,23 @@
     },
     {
       "file": "tools/build_wi.py",
-      "bytes": 7685,
-      "sha256": "b347a58f3c6989d7d37a43a1b4b8727df2ebcfb276c339a272c9af319cd28c17"
+      "bytes": 170,
+      "sha256": "0cb37600877a31a38df519c0857a94cee6ff5a853dd8320cd7c26694ff3f6994"
+    },
+    {
+      "file": "tools/build_wi_docx.py",
+      "bytes": 17509,
+      "sha256": "9f5f243343dd4b786f0ef50a2c3d441e83bc3c27a7db46a2952d429a1216d410"
     },
     {
       "file": "tools/check_artifacts.py",
-      "bytes": 3615,
-      "sha256": "504d78f2e52d4dba925243a67639afd10d48a43d92235596f899f4f97af49f3c"
+      "bytes": 6913,
+      "sha256": "c70c8c4538da9ef3b2fd74d32e3a86170574d88ed78d7dee1a1d8ea021ec19a8"
     },
     {
       "file": "tools/print_wi.cjs",
-      "bytes": 2210,
-      "sha256": "fdf69e423369ad641785ecf9b8799dcc9287348911b02563663b2cc262416945"
+      "bytes": 1098,
+      "sha256": "28533905eaa0d472918ee606ca65fefc0bd2bc748e639aa8358e37a0eeec1737"
     },
     {
       "file": "validation/browser-results.json",
@@ -455,6 +268,21 @@
       "file": "validation/test-results.json",
       "bytes": 1918,
       "sha256": "24963c88656ab65620cf7e3542d978031d7cf81f29ab6baef8bc7ed01bc8e1b3"
+    },
+    {
+      "file": "validation/word-build.json",
+      "bytes": 556,
+      "sha256": "6dffaaa020533d7132c4bf791154b5c468f03739b94589f4bfb135cc93dcc120"
+    },
+    {
+      "file": "validation/word-layout.json",
+      "bytes": 6342,
+      "sha256": "cfc2d19cf3832356d15823b35ad01833a9cb5a7bf5d7a608db6ea7e541dd5c02"
+    },
+    {
+      "file": "wi-content.json",
+      "bytes": 90325,
+      "sha256": "265980c93ee001cc9e9e6d9f902cd8bc59fc1eb75bbfd405d8fb167bcb68c0ed"
     }
   ]
 }

@@ -2,9 +2,24 @@
 import { onMounted, ref } from 'vue'
 import Icon from './components/Icon.vue'
 import { loadMeta, toasts } from './store'
+import { navigationErrorHref } from './router'
 
 const metaError = ref('')
 const loading = ref(true)
+
+function reloadNavigation(event: MouseEvent) {
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+  event.preventDefault()
+  if (!navigationErrorHref.value) return
+  const target = new URL(navigationErrorHref.value, window.location.href)
+  if (target.pathname === window.location.pathname && target.search === window.location.search) {
+    // An anchor to the current URL with a hash only scrolls; force a fresh load.
+    window.history.replaceState(window.history.state, '', target.href)
+    window.location.reload()
+  } else {
+    window.location.assign(target.href)
+  }
+}
 
 async function init() {
   loading.value = true
@@ -30,6 +45,15 @@ onMounted(init)
     <button class="btn-primary" @click="init"><Icon name="refresh" :size="16" /> ลองใหม่</button>
   </div>
   <RouterView v-else />
+
+  <div v-if="navigationErrorHref" role="alert" class="fixed inset-x-4 top-4 z-[70] rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 shadow-lg dark:border-amber-700 dark:bg-slate-800 dark:text-amber-100 sm:left-auto sm:w-96 no-print">
+    <p class="font-semibold">เปิดหน้าที่เลือกไม่สำเร็จ</p>
+    <p class="mt-1">กรุณาตรวจสอบการเชื่อมต่อแล้วลองโหลดหน้าอีกครั้ง หากมีข้อมูลที่ยังไม่ได้บันทึก ให้บันทึกหรือคัดลอกไว้ก่อน</p>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <a :href="navigationErrorHref" class="btn-primary" @click="reloadNavigation">โหลดหน้าที่เลือกอีกครั้ง</a>
+      <button type="button" class="btn-secondary" @click="navigationErrorHref = null">ปิดข้อความ</button>
+    </div>
+  </div>
 
   <div class="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4 no-print">
     <TransitionGroup enter-from-class="translate-y-4 opacity-0" leave-to-class="opacity-0" enter-active-class="transition" leave-active-class="transition">

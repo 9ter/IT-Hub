@@ -139,7 +139,7 @@ defineExpose({ prepare })
         <h2 class="section-tab">เอกสารแนบ / รายละเอียดเพิ่มเติม</h2>
         <table class="lined-table"><colgroup><col class="number-col" /><col /></colgroup><thead><tr><th>บรรทัด</th><th>รายละเอียดต่อเนื่อง · {{ ticket.ticket_no }}</th></tr></thead><tbody><tr v-for="(row, number) in annex || []" :key="number"><td class="row-number">{{ number + 1 }}</td><td :class="{ 'annex-heading': row.heading }">{{ row.text }}</td></tr></tbody></table>
       </section>
-      <footer class="form-footer"><span>FM-IT-010, Rev.01, 19/03/2569</span><span>{{ index === 0 && annexes.length ? 'มีรายละเอียดเพิ่มเติมในเอกสารแนบ · ' : '' }}หน้า {{ index + 1 }}/{{ annexes.length + 1 }}</span></footer>
+      <footer class="form-footer"><span>FM-IT-010, Rev.02, 04/11/2569</span><span>{{ index === 0 && annexes.length ? 'มีรายละเอียดเพิ่มเติมในเอกสารแนบ · ' : '' }}หน้า {{ index + 1 }}/{{ annexes.length + 1 }}</span></footer>
     </article>
   </div>
 </template>
