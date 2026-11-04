@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../src/bootstrap.php';
-$pdo=db();foreach(['tickets','ticket_logs','admins','employees','assets','maintenance_records','ticket_approvals','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','ticket_borrow_decisions','ticket_archives','it_documents'] as $table){$pdo->exec("CREATE TEMPORARY TABLE f_$table LIKE $table");$pdo->exec("ALTER TABLE f_$table RENAME TO $table");}
+$pdo=db();foreach(['tickets','ticket_logs','admins','employees','assets','maintenance_records','ticket_edit_requests','ticket_request_edits','ticket_approvals','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','ticket_borrow_decisions','ticket_archives','it_documents'] as $table){$pdo->exec("CREATE TEMPORARY TABLE f_$table LIKE $table");$pdo->exec("ALTER TABLE f_$table RENAME TO $table");}
 $checks=0;function check(bool $v,string $label):void{global $checks;if(!$v)throw new RuntimeException($label);$checks++;}
 $dir=sys_get_temp_dir().'/ithub-archive-'.bin2hex(random_bytes(8));mkdir($dir,0700);mkdir($dir.'/nas',0700);mkdir($dir.'/pdf',0700);
 $GLOBALS['ithub_config']['nas']['state_dir']=$dir.'/nas';$GLOBALS['ithub_config']['archive']['state_dir']=$dir.'/pdf';

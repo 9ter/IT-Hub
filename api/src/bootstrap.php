@@ -18,6 +18,7 @@ require __DIR__ . '/it_signatures.php';
 require __DIR__ . '/document_forms.php';
 require __DIR__ . '/documents.php';
 require __DIR__ . '/purchase_signatures.php';
+require __DIR__ . '/request_edits.php';
 require __DIR__ . '/borrow_approvals.php';
 require __DIR__ . '/nas.php';
 require __DIR__ . '/archives.php';

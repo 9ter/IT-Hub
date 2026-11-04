@@ -56,7 +56,7 @@ function purchase_approval_matches(?array $approval,array $ticket): bool
 {
     return $approval!==null && $ticket['type']==='purchase' && purchase_stage($approval['stage'])
         && (int)$approval['work_revision']===(int)$ticket['completion_revision']
-        && $approval['resolution_snapshot']===purchase_snapshot($ticket);
+        && ($approval['resolution_snapshot']===purchase_snapshot($ticket) || request_edit_preserves_approval($approval,$ticket));
 }
 
 function purchase_approval_check(array $approval,array $ticket): void

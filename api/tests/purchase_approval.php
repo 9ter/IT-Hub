@@ -3,7 +3,7 @@ declare(strict_types=1);
 require __DIR__.'/../src/bootstrap.php';
 require __DIR__.'/../src/admin.php';
 $pdo=db();
-foreach(['employees','tickets','ticket_logs','ticket_approvals','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','ticket_borrow_decisions','ticket_archives','it_documents','maintenance_records','admins','assets'] as $table){$pdo->exec("CREATE TEMPORARY TABLE fixture_$table LIKE $table");$pdo->exec("ALTER TABLE fixture_$table RENAME TO $table");}
+foreach(['employees','tickets','ticket_logs','ticket_edit_requests','ticket_request_edits','ticket_approvals','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','ticket_borrow_decisions','ticket_archives','it_documents','maintenance_records','admins','assets'] as $table){$pdo->exec("CREATE TEMPORARY TABLE fixture_$table LIKE $table");$pdo->exec("ALTER TABLE fixture_$table RENAME TO $table");}
 $checks=0;
 function verify(bool $value,string $label):void{global $checks;if(!$value)throw new RuntimeException($label);$checks++;}
 function rejects(callable $fn,int $status):void{try{$fn();}catch(HttpError $e){verify($e->status===$status,'Expected '.$status.', got '.$e->status.': '.$e->getMessage());return;}throw new RuntimeException('Expected HTTP '.$status);}

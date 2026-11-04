@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require __DIR__.'/../src/bootstrap.php';
 $out=$argv[1]??throw new RuntimeException('Pass a private output directory');
-$pdo=db();foreach(['tickets','ticket_logs','admins','employees','assets','maintenance_records','ticket_approvals','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','ticket_borrow_decisions','ticket_archives','it_documents','it_document_signatures','it_document_logs'] as $table){$pdo->exec("CREATE TEMPORARY TABLE f_$table LIKE $table");$pdo->exec("ALTER TABLE f_$table RENAME TO $table");}
+$pdo=db();foreach(['tickets','ticket_logs','admins','employees','assets','maintenance_records','ticket_edit_requests','ticket_request_edits','ticket_approvals','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','ticket_borrow_decisions','ticket_archives','it_documents','it_document_signatures','it_document_logs'] as $table){$pdo->exec("CREATE TEMPORARY TABLE f_$table LIKE $table");$pdo->exec("ALTER TABLE f_$table RENAME TO $table");}
 $pdo->exec("INSERT INTO admins(id,username,password_hash,display_name) VALUES(1,'fixture','fixture','Fixture IT')");$actor=['id'=>1,'display_name'=>'Fixture IT'];
 $details=[
  'repair'=>['job_type'=>'repair','equipment'=>'FIXTURE-COMPUTER','found_at'=>'2026-10-28 09:00:00'],

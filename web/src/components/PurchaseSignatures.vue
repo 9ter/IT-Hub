@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed,reactive,ref,watch } from 'vue'
+import { computed,onMounted,onUnmounted,reactive,ref,watch } from 'vue'
 import { api,type Approver,type Ticket,type PurchaseFields,type PurchaseRole } from '@/api'
 import { fmtDateTime } from '@/format'
 import { toast } from '@/store'
@@ -17,6 +17,34 @@ const busy=computed(()=>props.busy||!!operation.value)
 const normalize=(v:PurchaseFields|undefined)=>Object.fromEntries(['vendor','vendor_phone','quotation','quotation_date','amount','vat'].map(k=>[k,(v?.[k as keyof PurchaseFields]??'').toString().trim()]))
 const dirty=computed(()=>JSON.stringify(normalize(fields.value))!==JSON.stringify(normalize(props.ticket.purchase_fields))||props.resolution.trim()!==(props.ticket.resolution||''))
 const entry=(role:PurchaseRole)=>props.ticket.purchase_approvals?.[role]
+const waitingForSignature=computed(()=>available.value&&keys.some(key=>entry(key)?.current&&entry(key)?.status==='pending'))
+const checking=ref(false),refreshError=ref('')
+let refreshTimer:ReturnType<typeof setInterval>|undefined
+let disposed=false
+async function refreshSignatures(){
+  if(disposed||checking.value||busy.value||!waitingForSignature.value||document.visibilityState!=='visible')return
+  const previous=props.ticket
+  checking.value=true
+  try{
+    const updated=await api.get<Ticket>(`/admin/tickets/${previous.id}`)
+    if(disposed||busy.value||props.ticket!==previous)return
+    refreshError.value=''
+    emit('updated',updated,true)
+  }catch{
+    if(!disposed&&props.ticket===previous)refreshError.value='ตรวจสถานะอัตโนมัติไม่สำเร็จ กรุณากดตรวจสถานะอีกครั้ง'
+  }finally{checking.value=false}
+}
+onMounted(()=>{
+  refreshTimer=setInterval(refreshSignatures,15000)
+  window.addEventListener('focus',refreshSignatures)
+  document.addEventListener('visibilitychange',refreshSignatures)
+})
+onUnmounted(()=>{
+  disposed=true
+  clearInterval(refreshTimer)
+  window.removeEventListener('focus',refreshSignatures)
+  document.removeEventListener('visibilitychange',refreshSignatures)
+})
 watch(()=>props.ticket.id,()=>{for(const key of keys)selected[key]=entry(key)?.employee_id||(key==='director'?props.ticket.default_completion_approver_id||'':'')},{immediate:true})
 async function perform(kind:string,role?:PurchaseRole){
   if(busy.value)return
@@ -24,11 +52,11 @@ async function perform(kind:string,role?:PurchaseRole){
   try{
     let updated:Ticket
     if(kind==='refresh'){
-      if(dirty.value){error.value='กรุณาบันทึกข้อมูลที่แก้ไขก่อนตรวจสถานะ';return}
       updated=await api.get(`/admin/tickets/${props.ticket.id}`)
     }else if(kind==='receipt')updated=await api.post(`/admin/tickets/${props.ticket.id}/receipt-signature`,{consent:true})
     else updated=await api.post(`/admin/tickets/${props.ticket.id}/purchase-signature`,{role,approver_id:selected[role!],resolution:props.resolution,purchase_fields:fields.value,work_revision:props.ticket.completion_revision})
-    emit('updated',updated,kind==='receipt')
+    emit('updated',updated,kind==='receipt'||kind==='refresh')
+    if(kind==='refresh')refreshError.value=''
     if(kind==='request'){
       const sent=updated.purchase_approvals?.[role!]
       toast(sent?.mail_status==='sent'?'ส่งอีเมลขอลงนามแล้ว':sent?.mail_error||'บันทึกแล้ว แต่ส่งอีเมลไม่สำเร็จ',sent?.mail_status==='sent'?'ok':'error')
@@ -62,20 +90,25 @@ async function perform(kind:string,role?:PurchaseRole){
     <div v-for="role in roles" :key="role.key" class="space-y-2 border-t border-slate-200 pt-4 dark:border-slate-700">
       <h3 class="font-medium">{{role.label}}</h3>
       <template v-if="entry(role.key)">
-        <p class="text-sm">{{entry(role.key)!.approver_name}}</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400">ผู้รับอีเมลขอลงนาม</p>
+        <p class="text-sm font-medium">{{entry(role.key)!.approver_name}}</p>
+        <p class="break-all text-sm text-slate-500 dark:text-slate-400">{{entry(role.key)!.approver_email}}</p>
         <p v-if="!entry(role.key)!.current" class="text-sm text-amber-700 dark:text-amber-200">ลายเซ็นหรือคำขอฉบับก่อน — ข้อมูลเปลี่ยนแล้ว กรุณาส่งขอลงนามใหม่</p>
+        <p v-else-if="entry(role.key)!.status==='approved'" class="text-sm font-medium text-emerald-700 dark:text-emerald-300" role="status">ลงนามแล้ว</p>
         <p v-else class="text-sm text-brand-700 dark:text-brand-300">{{{pending:'รอลงนาม',approved:'ลงนามแล้ว',rejected:'ไม่รับรองเอกสาร'}[entry(role.key)!.status]}}</p>
         <p v-if="entry(role.key)!.mail_error" class="field-error">{{entry(role.key)!.mail_error}}</p>
-        <p v-else-if="entry(role.key)!.mail_sent_at" class="text-xs text-slate-500 dark:text-slate-400">ส่งอีเมล {{fmtDateTime(entry(role.key)!.mail_sent_at)}} · หมดอายุ {{fmtDateTime(entry(role.key)!.expires_at)}}</p>
+        <p v-else-if="entry(role.key)!.status==='pending'&&entry(role.key)!.mail_sent_at" class="text-xs text-slate-500 dark:text-slate-400">ส่งอีเมล {{fmtDateTime(entry(role.key)!.mail_sent_at)}} · หมดอายุ {{fmtDateTime(entry(role.key)!.expires_at)}}</p>
         <img v-if="entry(role.key)!.current&&entry(role.key)!.signature_data" :src="entry(role.key)!.signature_data!" :alt="`ลายเซ็น ${role.label}`" class="h-20 max-w-full rounded bg-white object-contain" />
         <p v-if="entry(role.key)!.signed_at" class="text-xs text-slate-500 dark:text-slate-400">ลงนาม {{fmtDateTime(entry(role.key)!.signed_at)}}</p><p v-if="entry(role.key)!.decision_note" class="whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{{entry(role.key)!.decision_note}}</p>
       </template>
       <template v-if="!entry(role.key)?.current||entry(role.key)?.status!=='approved'||dirty">
-        <label class="label" :for="`purchase_signer_${role.key}`">ผู้รับอีเมลขอลงนาม</label>
+        <label class="label" :for="`purchase_signer_${role.key}`">{{entry(role.key)?'เปลี่ยนผู้รับอีเมลขอลงนาม':'ผู้รับอีเมลขอลงนาม'}}</label>
         <select :id="`purchase_signer_${role.key}`" v-model="selected[role.key]" class="input" :disabled="busy||!available"><option value="" disabled>เลือกผู้ลงนาม</option><option v-for="p in approvers" :key="p.id" :value="p.id">{{p.full_name}} · {{p.department||p.company}}</option></select>
         <button class="btn-secondary" :disabled="busy||!available||!selected[role.key]" @click="perform('request',role.key)">{{operation==='request'?'กำลังส่ง...':entry(role.key)?.current&&entry(role.key)?.status==='pending'&&!dirty?'ส่งอีเมลขอลายเซ็นใหม่':'บันทึกข้อมูลและส่งขอลายเซ็น'}}</button>
       </template>
     </div>
-    <button class="btn-secondary" :disabled="busy" @click="perform('refresh')">ตรวจสถานะลายเซ็นจัดซื้อ</button><p v-if="error" role="alert" class="field-error">{{error}}</p>
+    <p v-if="waitingForSignature" class="text-xs text-slate-500 dark:text-slate-400">ตรวจสถานะลายเซ็นอัตโนมัติทุก 15 วินาทีระหว่างรอลงนาม</p>
+    <p v-if="refreshError" role="status" class="text-sm text-amber-700 dark:text-amber-200">{{refreshError}}</p>
+    <button class="btn-secondary" :disabled="busy||checking" @click="perform('refresh')">ตรวจสถานะลายเซ็นจัดซื้อ</button><p v-if="error" role="alert" class="field-error">{{error}}</p>
   </section>
 </template>

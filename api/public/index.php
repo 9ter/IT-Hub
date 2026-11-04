@@ -36,6 +36,8 @@ $r->get('/track/{code}', fn(string $no) => ticket_public($no));
 $r->get('/approvers', fn() => employee_approvers());
 $r->post('/approval/view', fn() => approval_view(request_body()));
 $r->post('/approval/decide', fn() => approval_decide(request_body()));
+$r->post('/request-edit/view', fn() => request_edit_view(request_body()));
+$r->post('/request-edit/submit', fn() => request_edit_submit(request_body()));
 $r->post('/document-approval/view', fn() => document_approval_view(request_body()));
 $r->post('/document-approval/decide', fn() => document_decide(request_body()));
 
@@ -83,6 +85,8 @@ $r->get('/admin/tickets', function () {
     require_admin();
     return ticket_list($_GET);
 });
+$r->post('/admin/tickets/{id}/request-edit', fn(int $id) => request_edit_admin($id,request_body(),require_admin()));
+$r->post('/admin/tickets/{id}/return-to-requester', fn(int $id) => request_edit_return($id,request_body(),require_admin()));
 $r->post('/admin/tickets/{id}/approval/resend', function (int $id) {
     require_admin();
     $in = new Input(request_body());

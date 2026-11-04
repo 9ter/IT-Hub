@@ -155,6 +155,9 @@ export interface TicketRow {
 
 export interface ArchiveStatus {id:number;status:string;filename:string|null;relative_path?:string|null;attempts:number;sent_at:string|null;last_error:string|null;created_at:string}
 export interface Ticket extends TicketRow {
+  request_edit_version?: string
+  request_edit_return?: RequestEditReturn|null
+  request_edit_history?: {id:number;admin_id:number|null;admin_name:string|null;edit_request_id:number|null;reason:string;before_snapshot:string;after_snapshot:string;created_at:string}[]
   nas_archive?: ArchiveStatus|null
   borrow_approval?: {status:'pending'|'approved'|'rejected';admin_id:number|null;admin_name:string|null;decision_note:string|null;decided_at:string|null;document_id:number|null;document_no:string|null;document_status:string|null}
   receipt_signature?: Pick<ItSignature,'admin_id'|'signer_name'|'signature_data'|'signed_at'> | null
@@ -243,6 +246,12 @@ export interface Approval {
 }
 
 export type PurchaseRole = 'director'|'purchasing'|'md'
+export interface RequestEditReturn {
+  id:number;reason:string;requester_email:string;status:'pending'|'submitted'|'superseded';expires_at:string;created_at:string;submitted_at:string|null;mail_status:'pending'|'sent'|'failed';mail_error:string|null
+}
+export interface PurchaseRequestData {
+  description:string;position:string;urgent:boolean;need_by:string;items:string[];spec_cpu:string;spec_ram:string;spec_storage:string;spec_display:string;spec_other:string
+}
 export interface PurchaseFields {
   vendor:string|null;vendor_phone:string|null;quotation:string|null;quotation_date:string|null;amount:string|null;vat:string|null
 }

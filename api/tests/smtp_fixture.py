@@ -33,7 +33,7 @@ while True:
                     lines.append(line[1:] if line.startswith(b'..') else line)
                 message = email.message_from_bytes(b''.join(lines), policy=email.policy.default)
                 body = message.get_content()
-                token = re.search(r'/approve#([a-f0-9]{64})', body)
+                token = re.search(r'/(?:approve|request-edit)#([a-f0-9]{64})', body)
                 with open(sys.argv[1], 'w') as capture:
                     json.dump({'token': token[1] if token else None, 'to': str(message['To']), 'from': str(message['From']), 'subject': str(message['Subject']), 'body': body}, capture)
                 reply('250 accepted by local sink')

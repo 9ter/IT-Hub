@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require __DIR__.'/../src/bootstrap.php';
 $pdo=db();
-foreach(['it_documents','it_document_signatures','it_document_logs','admins','employees','tickets','ticket_logs','ticket_approvals','ticket_borrow_decisions','ticket_archives','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','assets','maintenance_records'] as $table){
+foreach(['it_documents','it_document_signatures','it_document_logs','admins','employees','tickets','ticket_logs','ticket_edit_requests','ticket_request_edits','ticket_approvals','ticket_borrow_decisions','ticket_archives','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','assets','maintenance_records'] as $table){
     $pdo->exec("CREATE TEMPORARY TABLE fixture_$table LIKE $table");$pdo->exec("ALTER TABLE fixture_$table RENAME TO $table");
 }
 $checks=0;

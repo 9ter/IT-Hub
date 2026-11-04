@@ -197,6 +197,9 @@ function ticket_admin(int $id): array
         $ticket['details']['borrow_items']=borrow_items_for_details($ticket['details']);
     }
     if ($ticket['type']==='purchase') {
+        $ticket['request_edit_version']=request_edit_version($ticket);
+        $ticket['request_edit_return']=request_edit_latest($id);
+        $ticket['request_edit_history']=request_edit_history($id);
         $ticket['receipt_signature']=receipt_signature_for_ticket($id);
         $ticket['purchase_fields']=purchase_fields($ticket);
         $ticket['purchase_approvals']=purchase_approvals_for_ticket($ticket);

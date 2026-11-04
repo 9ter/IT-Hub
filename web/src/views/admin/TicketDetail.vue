@@ -6,6 +6,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import ServiceRequestPrint from '@/components/ServiceRequestPrint.vue'
 import DocumentPrint from '@/components/DocumentPrint.vue'
 import PurchaseSignatures from '@/components/PurchaseSignatures.vue'
+import RequestEditControls from '@/components/RequestEditControls.vue'
 import { purchasePrintDocument } from '@/purchasePrint'
 import { fmtDate, fmtDateTime } from '@/format'
 import { auth, meta, toast } from '@/store'
@@ -390,6 +391,7 @@ const signatures = computed(() =>
           <button v-if="ticket.has_photo" class="mt-4 block" @click="photoOpen = true">
             <img :src="photoUrl(ticket.id)" alt="รูปที่แนบ" class="max-h-56 rounded-xl border border-slate-200" />
           </button>
+          <RequestEditControls v-if="ticket.type==='purchase'" :key="ticket.id" :ticket="ticket" :busy="saving||purchaseBusy||sendingCompletion" @updated="applyPurchaseUpdate" @busy="purchaseBusy=$event" />
         </section>
 
         <section class="card p-5">

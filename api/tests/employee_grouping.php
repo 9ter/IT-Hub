@@ -4,7 +4,7 @@ declare(strict_types=1);
 // Connection-local copies only; no production directory or approval records change.
 require __DIR__ . '/../src/bootstrap.php';
 $pdo = db();
-foreach (['employees', 'ticket_approvals'] as $table) {
+foreach (['employees', 'ticket_edit_requests','ticket_request_edits','ticket_approvals'] as $table) {
     $pdo->exec("CREATE TEMPORARY TABLE `fixture_$table` LIKE `$table`");
     $pdo->exec("ALTER TABLE `fixture_$table` RENAME TO `$table`");
 }

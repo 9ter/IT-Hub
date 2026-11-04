@@ -14,6 +14,7 @@ const router = createRouter({
     { path: '/request/:type', name: 'request', component: () => import('./views/public/RequestForm.vue'), props: true },
     { path: '/track/:no?', name: 'track', component: () => import('./views/public/Track.vue'), props: true },
     { path: '/approve', name: 'approve', component: () => import('./views/public/Approve.vue') },
+    { path: '/request-edit', name: 'request-edit', component: () => import('./views/public/RequestEdit.vue') },
     { path: '/document-approve', name: 'document-approve', component: () => import('./views/public/DocumentApprove.vue') },
 
     { path: '/admin/login', name: 'login', component: () => import('./views/admin/Login.vue') },

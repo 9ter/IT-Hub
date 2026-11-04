@@ -42,6 +42,7 @@ const PURCHASE_ITEMS = [
     'notebook' => 'คอมพิวเตอร์พกพา (Notebook)',
     'monitor' => 'จอภาพ (Monitor)',
     'printer' => 'เครื่องพิมพ์ / สแกนเนอร์',
+    'ink' => 'หมึก',
     'ups' => 'เครื่องสำรองไฟ (UPS)',
     'network' => 'อุปกรณ์เครือข่าย',
     'software' => 'ซอฟต์แวร์ / ลิขสิทธิ์',
