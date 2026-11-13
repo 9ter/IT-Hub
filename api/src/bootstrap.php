@@ -11,6 +11,7 @@ require __DIR__ . '/ticket_types.php';
 require __DIR__ . '/signatures.php';
 require __DIR__ . '/tickets.php';
 require __DIR__ . '/employees.php';
+require __DIR__ . '/companies.php';
 require __DIR__ . '/employee_signatures.php';
 require __DIR__ . '/approvals.php';
 require __DIR__ . '/completion_approvals.php';

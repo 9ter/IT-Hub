@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../src/bootstrap.php';
+function fixture_signature():string{$im=imagecreatetruecolor(600,200);imagefilledrectangle($im,0,0,599,199,imagecolorallocate($im,255,255,255));imagesetthickness($im,3);$ink=imagecolorallocate($im,15,23,42);imageline($im,40,150,180,30,$ink);imageline($im,180,30,330,140,$ink);ob_start();imagepng($im);$d=ob_get_clean();imagedestroy($im);return 'data:image/png;base64,'.base64_encode($d);}
 $pdo=db();
 foreach(['it_documents','it_document_signatures','it_document_logs','admins','employees','tickets','ticket_logs','ticket_edit_requests','ticket_request_edits','ticket_approvals','ticket_borrow_decisions','ticket_archives','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','assets','maintenance_records'] as $table){
     $pdo->exec("CREATE TEMPORARY TABLE fixture_$table LIKE $table");$pdo->exec("ALTER TABLE fixture_$table RENAME TO $table");
@@ -73,7 +74,7 @@ verify(ticket_public($rejected['ticket_no'])['borrow_approval_status']==='reject
 rejects(fn()=>borrow_decide($rejectedId,['decision'=>'approved'],$actor),409);
 $cancelId=submit_borrow();update_ticket($cancelId,['status'=>'cancelled'],$actor);rejects(fn()=>borrow_decide($cancelId,['decision'=>'approved'],$actor),409);
 verify(borrow_pending_requests([])['total']===0,'Cancelled and rejected requests are absent from pending queue');
-$otherType=create_ticket(['type'=>'repair','requester_name'=>'Fixture','requester_dept'=>'Fixture','equipment'=>'Fixture','description'=>'Fixture repair'],null);$otherId=(int)$pdo->query("SELECT id FROM tickets WHERE type='repair'")->fetchColumn();rejects(fn()=>borrow_decide($otherId,['decision'=>'approved'],$actor),422);
+$otherType=create_ticket(['type'=>'repair','requester_name'=>'Fixture','requester_dept'=>'Fixture','equipment'=>'Fixture','description'=>'Fixture repair','requester_signature_data'=>fixture_signature()],null);$otherId=(int)$pdo->query("SELECT id FROM tickets WHERE type='repair'")->fetchColumn();rejects(fn()=>borrow_decide($otherId,['decision'=>'approved'],$actor),422);
 // A register write failure rolls back both ticket status and decision.
 $rollbackId=submit_borrow();$pdo->prepare("INSERT INTO it_documents(document_no,form_code,title,document_date,company,data,source_key) VALUES('COLLISION','FM-IT-008','Fixture',CURRENT_DATE(),'Fixture','{}',?)")->execute(['borrow-ticket:'.$rollbackId]);
 try{borrow_decide($rollbackId,['decision'=>'approved'],$actor);throw new RuntimeException('Expected duplicate source failure');}catch(PDOException $e){verify((int)$e->errorInfo[1]===1062,'Fixture forces document uniqueness failure');}
@@ -122,4 +123,11 @@ verify(count(ticket_admin($legacyId)['details']['borrow_items'])===1,'Legacy fla
 $legacyApproved=borrow_decide($legacyId,['decision'=>'approved'],$actor);
 verify(count(document_detail((int)$legacyApproved['borrow_approval']['document_id'])['data']['rows'])===1,'Legacy flat request still approves into one record row');
 document_cancel($docId,$actor);rejects(fn()=>document_save($docId,$d,$actor),409);
+// Company chosen on the public chooser (read-only lookup in E-Procurement) follows the request into the FM008 record.
+$innoId=submit_borrow(['company_id'=>36]);$innoDetails=ticket_admin($innoId)['details'];
+verify(($innoDetails['requester_company']['code']??'')==='ATSINNO'&&($innoDetails['requester_company']['id']??0)===36,'Selected company is stored on the request');
+$innoDoc=document_detail((int)borrow_decide($innoId,['decision'=>'approved'],$actor)['borrow_approval']['document_id']);
+verify($innoDoc['company']==='บริษัท อัตถสาร อินโนเวชั่น จำกัด','Approved FM008 record uses the requester company');
+verify(!array_key_exists('requester_company',ticket_admin(submit_borrow())['details']),'Requests without a company keep the old details shape');
+rejects(fn()=>submit_borrow(['company_id'=>1495]),422);rejects(fn()=>submit_borrow(['company_id'=>'x']),422);
 echo "PASS: $checks borrow approval/register checks; temporary tables only, no email\n";

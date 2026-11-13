@@ -15,14 +15,17 @@ try{
  $png=drawing();$actor=['id'=>1,'display_name'=>'Fixture IT'];
  $pdo->prepare("INSERT INTO admins(id,username,password_hash,display_name,signature_data) VALUES(1,'fixture','fixture','Fixture IT',?)")->execute([$png]);
  $pdo->exec("INSERT INTO employees(id,full_name,email,company,can_approve) VALUES(1,'Fixture Head','head@example.com','Fixture',1)");
- $created=create_ticket(['type'=>'purchase','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Dept','requester_email'=>'requester@example.com','description'=>'Original request','items'=>['notebook'],'approver_id'=>1,'requester_signature_data'=>$png],null);
+ $created=create_ticket(['type'=>'purchase','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Dept','requester_email'=>'requester@example.com','description'=>'Original request','items'=>['notebook'],'item_quantities'=>['notebook'=>1],'approver_id'=>1,'requester_signature_data'=>$png],null);
  $id=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();$approve=['decision'=>'approved','consent'=>true,'signature_data'=>$png];approval_decide([...$approve,'token'=>token($capture)]);
  $t=update_ticket($id,['status'=>'in_progress'],$actor);$tokens=[];
  foreach(['director','purchasing','md'] as $role){$t=purchase_signature_request($id,['role'=>$role,'approver_id'=>1],$actor);$tokens[$role]=token($capture);}
  approval_decide([...$approve,'token'=>$tokens['director']]);approval_decide([...$approve,'token'=>$tokens['md']]);$t=ticket_admin($id);$signatureHash=signatures($id);$revision=$t['completion_revision'];
- $edit=['version'=>$t['request_edit_version'],'reason'=>'Correct equipment','request'=>['description'=>'Corrected request','items'=>['ink'],'spec_other'=>'Black toner']];
+ $edit=['version'=>$t['request_edit_version'],'reason'=>'Correct equipment','request'=>['description'=>'Corrected request','items'=>['ink'],'item_quantities'=>['ink'=>2],'spec_other'=>'Black toner']];
+ $noQuantity=$edit;unset($noQuantity['request']['item_quantities']);rejects(fn()=>request_edit_admin($id,$noQuantity,$actor),422);
+ rejects(fn()=>request_edit_admin($id,[...$edit,'request'=>[...$edit['request'],'item_quantities'=>['ink'=>0]]],$actor),422);
+ verify(count(ticket_admin($id)['request_edit_history'])===0,'Newly selected item without a valid quantity is rejected');
  $t=request_edit_admin($id,$edit,$actor);
- verify($t['description']==='Corrected request'&&$t['details']['items']===['ink']&&$t['title']==='ขอซื้อ: หมึก','Admin edits request, equipment and title');
+ verify($t['description']==='Corrected request'&&$t['details']['items']===['ink']&&$t['details']['item_quantities']===['ink'=>2]&&$t['title']==='ขอซื้อ: หมึก x2','Admin edits request, equipment, quantity and title');
  verify($t['completion_revision']===$revision&&signatures($id)===$signatureHash,'All signature rows and revision unchanged');
  foreach($t['purchase_approvals'] as $a)verify($a['current'],'Existing approved/pending sign-off stays current');
  verify(count($t['request_edit_history'])===1&&$t['request_edit_history'][0]['admin_id']===1,'Audit before/after and admin actor');
@@ -41,12 +44,12 @@ try{
  $s=$pdo->query('SELECT token_hash FROM ticket_edit_requests ORDER BY id DESC LIMIT 1')->fetchColumn();verify($s===hash('sha256',$editToken)&&!str_contains(json_encode($t),$editToken),'Token hashed and omitted from admin payload');
  verify(!isset(ticket_public($created['ticket_no'])['request_edit_return']),'Public tracking exposes no return links or private details');
  rejects(fn()=>request_edit_view(['token'=>'invalid']),404);rejects(fn()=>request_edit_view(['token'=>str_repeat('0',64)]),404);
- $view=request_edit_view(['token'=>$editToken]);verify($view['reason']==='Add exact toner model'&&$view['request']['description']==='Corrected request','Recipient sees correction reason and current request');
+ $view=request_edit_view(['token'=>$editToken]);verify($view['reason']==='Add exact toner model'&&$view['request']['description']==='Corrected request'&&$view['request']['item_quantities']===['ink'=>2],'Recipient sees correction reason, current request and quantities');
  verify(!isset($view['approval'],$view['signature_data'],$view['requester_email'],$view['request']['procurement']),'Recipient payload excludes signatures, contacts and procurement');
  $body=['token'=>$editToken,'version'=>$view['version'],'request'=>['description'=>'Requester final detail','spec_other'=>'HP toner fixture']];
  rejects(fn()=>request_edit_submit([...$body,'request'=>['resolution'=>'Unauthorized']]),422);
  $out=request_edit_submit($body);$t=ticket_admin($id);
- verify($out['ticket_no']===$created['ticket_no']&&$t['description']==='Requester final detail','Requester submits corrected details');
+ verify($out['ticket_no']===$created['ticket_no']&&$t['description']==='Requester final detail'&&$t['details']['item_quantities']===['ink'=>2],'Requester submits corrected details; untouched quantities carry over');
  verify($t['request_edit_return']['status']==='submitted'&&$t['request_edit_return']['submitted_at']!==null,'Return marked submitted');
  verify(count($t['request_edit_history'])===2&&$t['request_edit_history'][0]['admin_id']===null,'Requester edit is audited separately');
  verify(signatures($id)===$signatureHash&&$t['completion_revision']===$revision,'Requester correction preserves all original signature evidence');
@@ -76,5 +79,24 @@ try{
  $t=update_ticket($id,['purchase_fields'=>['amount'=>'123.00']],$actor);foreach($t['purchase_approvals'] as $a)verify(!$a['current'],'Procurement changes still invalidate old procurement sign-off');
  $pdo->exec("UPDATE tickets SET status='cancelled' WHERE id=$id");$t=ticket_admin($id);rejects(fn()=>request_edit_admin($id,['version'=>$t['request_edit_version'],'reason'=>'Invalid','request'=>['description'=>'Invalid']],$actor),409);
  $pdo->exec("UPDATE tickets SET status='in_progress',requester_email=NULL WHERE id=$id");$t=ticket_admin($id);rejects(fn()=>request_edit_return($id,['version'=>$t['request_edit_version'],'reason'=>'No recipient'],$actor),422);
+ // Requests made before quantities existed must gain one when corrected; stored rows are not rewritten until then.
+ $legacy=create_ticket(['type'=>'purchase','requester_name'=>'Legacy Requester','requester_dept'=>'Fixture Dept','description'=>'Legacy request','items'=>['monitor'],'item_quantities'=>['monitor'=>1],'approver_id'=>1,'requester_signature_data'=>$png],null);
+ $lid=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();$pdo->exec("UPDATE tickets SET details=JSON_REMOVE(details,'$.item_quantities','$.item_details'),title='ขอซื้อ: จอภาพ' WHERE id=$lid");
+ $t=ticket_admin($lid);verify(!isset($t['details']['item_quantities'])&&$t['title']==='ขอซื้อ: จอภาพ','Legacy fixture has no quantities');
+ rejects(fn()=>request_edit_admin($lid,['version'=>$t['request_edit_version'],'reason'=>'Legacy edit','request'=>['description'=>'Legacy corrected']],$actor),422);
+ $t=request_edit_admin($lid,['version'=>$t['request_edit_version'],'reason'=>'Legacy edit','request'=>['description'=>'Legacy corrected','item_quantities'=>['monitor'=>4]]],$actor);
+ verify($t['details']['item_quantities']===['monitor'=>4]&&$t['title']==='ขอซื้อ: จอภาพ x4','Legacy correction stores quantity and title');
+ $changes=json_decode($t['request_edit_history'][0]['after_snapshot'],true)['request']['item_quantities']??null;verify($changes===['monitor'=>4],'Quantity change recorded in audit snapshot');
+ verify(!array_key_exists('item_details',$t['details']),'Legacy request without item details keeps no item_details key');
+ $t=request_edit_admin($lid,['version'=>$t['request_edit_version'],'reason'=>'Add model','request'=>['item_details'=>['monitor'=>' Dell 24 นิ้ว ']]],$actor);
+ verify($t['details']['item_details']===['monitor'=>'Dell 24 นิ้ว']&&$t['details']['item_quantities']===['monitor'=>4],'Admin adds a per-item detail; quantity carries over');
+ $after=json_decode($t['request_edit_history'][0]['after_snapshot'],true)['request']['item_details']??null;verify($after===['monitor'=>'Dell 24 นิ้ว'],'Item detail change recorded in audit snapshot');
+ $t=request_edit_admin($lid,['version'=>$t['request_edit_version'],'reason'=>'Noop other','request'=>['description'=>'Legacy corrected again','item_other'=>'']],$actor);
+ verify(!array_key_exists('item_other',$t['details']),'Blank item_other on a request without อื่นๆ adds no key');
+ rejects(fn()=>request_edit_admin($lid,['version'=>$t['request_edit_version'],'reason'=>'Add other','request'=>['items'=>['monitor','other'],'item_quantities'=>['monitor'=>4,'other'=>2]]],$actor),422);
+ $t=request_edit_admin($lid,['version'=>$t['request_edit_version'],'reason'=>'Add other','request'=>['items'=>['monitor','other'],'item_quantities'=>['monitor'=>4,'other'=>2],'item_other'=>' Webcam ']],$actor);
+ verify($t['details']['item_other']==='Webcam'&&$t['title']==='ขอซื้อ: จอภาพ x4, อื่นๆ: Webcam x2','Admin adds a typed other item');
+ $t=request_edit_admin($lid,['version'=>$t['request_edit_version'],'reason'=>'Drop other','request'=>['items'=>['monitor'],'item_quantities'=>['monitor'=>4],'item_other'=>'Webcam']],$actor);
+ verify(!array_key_exists('item_other',$t['details'])&&$t['title']==='ขอซื้อ: จอภาพ x4','Removing อื่นๆ drops the typed type');
  echo "PASS: $checks request correction checks; TEMPORARY tables and loopback SMTP only\n";
 }finally{proc_terminate($process);foreach($pipes as $pipe)fclose($pipe);proc_close($process);@unlink($capture);}

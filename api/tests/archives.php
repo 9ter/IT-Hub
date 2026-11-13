@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../src/bootstrap.php';
+function fixture_signature():string{$im=imagecreatetruecolor(600,200);imagefilledrectangle($im,0,0,599,199,imagecolorallocate($im,255,255,255));imagesetthickness($im,3);$ink=imagecolorallocate($im,15,23,42);imageline($im,40,150,180,30,$ink);imageline($im,180,30,330,140,$ink);ob_start();imagepng($im);$d=ob_get_clean();imagedestroy($im);return 'data:image/png;base64,'.base64_encode($d);}
 $pdo=db();foreach(['tickets','ticket_logs','admins','employees','assets','maintenance_records','ticket_edit_requests','ticket_request_edits','ticket_approvals','ticket_requester_signatures','ticket_it_signatures','ticket_receipt_signatures','ticket_borrow_decisions','ticket_archives','it_documents'] as $table){$pdo->exec("CREATE TEMPORARY TABLE f_$table LIKE $table");$pdo->exec("ALTER TABLE f_$table RENAME TO $table");}
 $checks=0;function check(bool $v,string $label):void{global $checks;if(!$v)throw new RuntimeException($label);$checks++;}
 $dir=sys_get_temp_dir().'/ithub-archive-'.bin2hex(random_bytes(8));mkdir($dir,0700);mkdir($dir.'/nas',0700);mkdir($dir.'/pdf',0700);
@@ -9,7 +10,7 @@ $mapping=['revision'=>str_repeat('a',32),'host'=>'192.168.1.10','share'=>'Fixtur
 $save=function()use(&$mapping,$dir){$nonce=random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);file_put_contents($dir.'/nas/mapping.enc',$nonce.sodium_crypto_secretbox(json_encode($mapping),$nonce,nas_key(true)));};$save();
 $actor=['id'=>1,'display_name'=>'Fixture IT'];$pdo->exec("INSERT INTO admins(id,username,password_hash,display_name) VALUES(1,'fixture','fixture','Fixture IT')");$_SERVER['REMOTE_ADDR']='127.0.0.50';
 try{
- $r=create_ticket(['type'=>'repair','requester_name'=>'Fixture requester','requester_dept'=>'Fixture','equipment'=>'Fixture computer','description'=>'Fixture problem'],null);$id=(int)$pdo->lastInsertId();$id=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();
+ $r=create_ticket(['type'=>'repair','requester_name'=>'Fixture requester','requester_dept'=>'Fixture','equipment'=>'Fixture computer','description'=>'Fixture problem','requester_signature_data'=>fixture_signature()],null);$id=(int)$pdo->lastInsertId();$id=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();
  check(archive_status($id)===null,'No archive for an open request');
  update_ticket($id,['status'=>'done','resolution'=>'Fixture repaired'],$actor);$job=$pdo->query('SELECT * FROM ticket_archives')->fetch();
  check($job['status']==='pending'&&$job['target_revision']===$mapping['revision'],'Completion queues an immutable snapshot for mapped NAS');

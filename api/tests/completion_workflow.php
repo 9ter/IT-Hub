@@ -108,10 +108,44 @@ try {
     verify($t['status']==='in_progress' && !$t['completion_approval']['signature_data'],'SMTP failure cannot mark finished or sign');
     $count=(int)$pdo->query("SELECT COUNT(*) FROM ticket_approvals WHERE stage='completion'")->fetchColumn();
     verify($count===5,'Every decision/version keeps its own evidence');
-    $repair=create_ticket(['type'=>'repair','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Department','description'=>'Fixture repair','equipment'=>'Fixture device'],null);
+    // FM-IT-003: requester signs on submit; ผอ./ผจก. sign-off is optional and may finish after closing.
+    $GLOBALS['ithub_config']['smtp']['enabled']=true;
+    $repairBody=['type'=>'repair','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Department','description'=>'Fixture repair','equipment'=>'Fixture device'];
+    rejects(fn()=>create_ticket($repairBody,null),422);
+    rejects(fn()=>create_ticket([...$repairBody,'requester_signature_data'=>'data:image/svg+xml;base64,PHN2Zy8+'],null),422);
+    $repair=create_ticket([...$repairBody,'requester_signature_data'=>$signature],null);
     $repairId=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();
-    rejects(fn()=>completion_request($repairId,$body,$admin),422);
-    verify(update_ticket($repairId,['status'=>'done','resolution'=>'Fixture repair fixed'],$admin)['status']==='done','Repair workflow remains unchanged');
+    verify(!isset($repair['mail_status']) && approval_for_ticket($repairId)===null,'Repair has no approver before IT starts');
+    $rt=ticket_admin($repairId);
+    verify($rt['requester_signature']['signature_data']===$signature && $rt['requester_signature']['requester_name']==='Fixture Requester','Repair requester signature stored');
+    verify(!$rt['completion_required'],'Repair sign-off is not a closing gate');
+    verify(!array_key_exists('requester_signature',ticket_public($repair['ticket_no'])),'Public tracker hides repair signature');
+    verify(update_ticket($repairId,['status'=>'in_progress'],$admin)['status']==='in_progress','Repair starts without approval');
+    rejects(fn()=>completion_request($repairId,[...$body,'resolution'=>''],$admin),422);
+    $rt=completion_request($repairId,[...$body,'resolution'=>'Fixture repair fixed'],$admin);$rmail=json_decode(file_get_contents($capture),true);$rtoken=$rmail['token'];
+    verify($rt['completion_approval']['status']==='pending' && $rt['status']==='in_progress','Repair sign-off requested while open');
+    verify(str_contains($rmail['to'],'director@example.com') && str_contains($rmail['subject'],'งานซ่อม') && str_contains($rmail['body'],'FM-IT-003') && str_contains($rmail['body'],'Fixture repair fixed'),'Repair sign-off mail names FM-IT-003 and result');
+    $done=update_ticket($repairId,['status'=>'done'],$admin);
+    verify($done['status']==='done' && $done['completion_approval']['status']==='pending','Repair closes without waiting for ผอ./ผจก.');
+    $rview=approval_view(['token'=>$rtoken]);
+    verify($rview['type']==='repair' && $rview['resolution_snapshot']==='Fixture repair fixed','Signer can view after repair closed');
+    $archivesBefore=(int)$pdo->query("SELECT COUNT(*) FROM ticket_archives WHERE ticket_id=$repairId")->fetchColumn();
+    approval_decide([...$decision,'token'=>$rtoken]);
+    $rt=ticket_admin($repairId);
+    verify($rt['status']==='done' && $rt['completion_approval']['status']==='approved' && $rt['completion_approval_current'],'Post-close sign-off recorded and current');
+    verify((int)$pdo->query("SELECT COUNT(*) FROM ticket_archives WHERE ticket_id=$repairId")->fetchColumn()===$archivesBefore+1,'Post-close signature queues a new archive version');
+    rejects(fn()=>approval_decide([...$decision,'token'=>$rtoken]),409);
+    rejects(fn()=>completion_request($repairId,[...$body,'resolution'=>'Fixture repair fixed'],$admin),409);
+    rejects(fn()=>completion_request($repairId,[...$body,'resolution'=>'Edited after close'],$admin),409);
+    // Rejection never changes repair status; a closed repair can be re-requested with the same result.
+    $repair2=create_ticket([...$repairBody,'requester_signature_data'=>$signature],null);$repair2Id=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();
+    update_ticket($repair2Id,['status'=>'done','resolution'=>'Second fixture fix'],$admin);
+    $r2=completion_request($repair2Id,[...$body,'resolution'=>'Second fixture fix'],$admin);$r2token=json_decode(file_get_contents($capture),true)['token'];
+    verify($r2['status']==='done' && $r2['completion_approval']['status']==='pending','Sign-off can be requested after closing');
+    approval_decide([...$decision,'token'=>$r2token,'decision'=>'rejected','decision_note'=>'Fixture objection']);
+    verify(ticket_admin($repair2Id)['status']==='done','Repair rejection keeps status');
+    update_ticket($repair2Id,['status'=>'cancelled'],$admin);
+    rejects(fn()=>completion_request($repair2Id,[...$body,'resolution'=>'Second fixture fix'],$admin),409);
     echo "PASS: $checks completion checks; temporary tables and loopback SMTP only.\n";
 } finally {
     proc_terminate($process);foreach($pipes as $pipe)fclose($pipe);proc_close($process);unlink($capture);

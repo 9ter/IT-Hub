@@ -41,6 +41,7 @@ if (!is_resource($process)) throw new RuntimeException('Cannot start local SMTP 
 try {
     $port = (int)fgets($pipes[1]);
     verify($port > 0, 'SMTP fixture port');
+    verify(in_array('company_email',SERVICE_ACTIONS_RETIRED,true)&&isset(SERVICE_ACTIONS['company_email'])&&meta_payload()['service_actions_retired']===SERVICE_ACTIONS_RETIRED,'Retired service action stays readable and is flagged in meta');
     $GLOBALS['ithub_config']['smtp'] = ['enabled'=>true,'host'=>'127.0.0.1','port'=>$port,'encryption'=>'','username'=>'fixture','password'=>'fixture','from_email'=>'it-hub@example.com'];
     $_SERVER['REMOTE_ADDR'] = '127.0.0.2';
     $person = ['full_name'=>'Test Approver','email'=>'approver@example.com','company'=>'Test Company','department'=>'Test Department','can_approve'=>true];
@@ -183,13 +184,17 @@ try {
     $token4 = json_decode(file_get_contents($capture),true)['token'];
     approval_decide([...$decision,'token'=>$token4]);
     verify(approval_for_ticket($id4)['approver_name'] === 'Alternate Approver', 'New approver snapshot signed');
-    $repair = create_ticket(['type'=>'repair','requester_name'=>'Test Requester','requester_dept'=>'Test Department','description'=>'Fixture repair','equipment'=>'Test computer'],null);
-    verify(!isset($repair['mail_status']), 'Other form types keep original workflow');
-    verify(ticket_admin((int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn())['requester_signature'] === null, 'Unsigned legacy/other requests return null signature');
+    $repairBody = ['type'=>'repair','requester_name'=>'Test Requester','requester_dept'=>'Test Department','description'=>'Fixture repair','equipment'=>'Test computer'];
+    rejects(fn()=>create_ticket($repairBody,null),422);
+    $repair = create_ticket([...$repairBody,'requester_signature_data'=>signature()],null);
+    verify(!isset($repair['mail_status']), 'Repair signs without an approver email');
+    verify(ticket_admin((int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn())['requester_signature']['signature_data'] === signature(), 'Repair stores requester signature');
+    create_ticket(['type'=>'email','requester_name'=>'Test Requester','requester_dept'=>'Test Department','description'=>'Fixture email','name_th'=>'Test','name_en'=>'Test','position'=>'Test','company'=>'ats'],null);
+    verify(ticket_admin((int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn())['requester_signature'] === null, 'Unsigned other requests return null signature');
     $forms = [
         ['type'=>'email','name_th'=>'Test Employee','name_en'=>'Test Employee','position'=>'Test Position','company'=>'ats'],
         ['type'=>'borrow','device_kind'=>'notebook','item'=>'Test Notebook','quantity'=>1,'start_date'=>date('Y-m-d')],
-        ['type'=>'purchase','items'=>['notebook']],
+        ['type'=>'purchase','items'=>['notebook'],'item_quantities'=>['notebook'=>1]],
     ];
     foreach ($forms as $form) {
         $other = create_ticket([...$body,...$form],null);

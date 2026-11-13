@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import Icon from '@/components/Icon.vue'
 import itHubLogo from '@/assets/ithub-logo.png'
+import NotificationBell from '@/components/NotificationBell.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import { refreshPending, startPendingPoll, stopPendingPoll } from '@/notifications'
 import { auth } from '@/store'
 
 const router = useRouter()
@@ -16,6 +18,7 @@ const nav = [
   { to: '/admin/tickets', label: 'คำขอ / แจ้งซ่อม', icon: 'list' },
   { to: '/admin/assets', label: 'ทะเบียนอุปกรณ์', icon: 'desktop' },
   { to: '/admin/documents', label: 'เอกสารฝ่าย IT', icon: 'list' },
+  { to: '/admin/inspections', label: 'ตรวจสอบโครงสร้างพื้นฐาน', icon: 'check' },
   { to: '/admin/borrows', label: 'บันทึกเบิก–ยืมอุปกรณ์', icon: 'list' },
   { to: '/admin/employees', label: 'ข้อมูลพนักงาน', icon: 'users' },
   { to: '/admin/admins', label: 'ผู้ดูแลระบบ', icon: 'users' },
@@ -23,6 +26,9 @@ const nav = [
 ]
 
 watch(() => route.fullPath, () => (open.value = false))
+watch(() => route.path, refreshPending)
+onMounted(startPendingPoll)
+onBeforeUnmount(stopPendingPoll)
 
 const isActive = (item: (typeof nav)[number]) => (item.exact ? route.path === item.to : route.path.startsWith(item.to))
 
@@ -39,10 +45,11 @@ async function logout() {
     <header class="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 lg:hidden no-print">
       <button class="btn-ghost -ml-2 p-2" aria-label="เมนู" @click="open = true"><Icon name="menu" /></button>
       <RouterLink to="/admin" class="flex items-center gap-3" aria-label="IT Hub Admin">
-        <img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="h-10 w-auto rounded bg-white object-contain" />
+        <img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="h-10 w-auto object-contain" />
         <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">ADMIN</span>
       </RouterLink>
-      <ThemeToggle class="ml-auto" />
+      <NotificationBell placement="header" class="ml-auto" />
+      <ThemeToggle />
     </header>
 
     <div v-if="open" class="fixed inset-0 z-40 bg-slate-900/40 lg:hidden" @click="open = false" />
@@ -52,10 +59,13 @@ async function logout() {
         open ? 'translate-x-0' : '-translate-x-full',
       ]"
     >
-      <RouterLink to="/admin" class="flex h-16 items-center gap-2.5 px-5 font-bold text-white" aria-label="IT Hub Admin" @click="open = false">
-        <img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="h-12 w-auto rounded bg-white p-1 object-contain" />
-        <span class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300">ADMIN</span>
-      </RouterLink>
+      <div class="flex h-16 items-center justify-between pr-3">
+        <RouterLink to="/admin" class="flex h-full items-center gap-2.5 pl-5 font-bold text-white" aria-label="IT Hub Admin" @click="open = false">
+          <img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="h-12 w-auto object-contain" />
+          <span class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300">ADMIN</span>
+        </RouterLink>
+        <NotificationBell placement="sidebar" />
+      </div>
       <nav class="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2">
         <RouterLink
           v-for="item in nav"

@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { signaturesReady } from '@/signatureTrim'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import type { Ticket } from '@/api'
 import { fmtFormDate } from '@/format'
 import PrintSignatory from './PrintSignatory.vue'
-import atsLogo from '@/assets/ats-logo.png'
+import { companyLogo, ensureCompanies, ticketCompany } from '@/companies'
 import '@fontsource/noto-serif-thai/400.css'
 import '@fontsource/noto-serif-thai/700.css'
 
@@ -71,10 +72,15 @@ const annexes = computed(() => {
 })
 const director = computed(() => props.ticket.completion_approval_current ? props.ticket.completion_approval : null)
 
+// โลโก้ตามบริษัทที่ผู้ร้องขอเลือก (ใบเก่าที่ไม่มีข้อมูลบริษัท = ATS ตามเดิม)
+const logo = computed(() => companyLogo(ticketCompany(props.ticket.details)?.name))
+
 async function prepare() {
+  await ensureCompanies()
   const sample = `ภาษาไทย ABC 123 ${props.ticket.requester_name} ${requestText.value} ${props.ticket.resolution || ''}`
   await Promise.all([document.fonts.load('9pt "Noto Serif Thai"', sample), document.fonts.load('700 10.5pt "Noto Serif Thai"', 'แบบฟอร์มร้องขอดำเนินการด้าน IT Request Form')])
   fontReady.value = true
+  await signaturesReady()
   await nextTick()
   await Promise.all(Array.from(root.value?.querySelectorAll('img') || []).map(img => img.decode().catch(() => {})))
 }
@@ -86,7 +92,7 @@ defineExpose({ prepare })
   <div ref="root" class="service-request-print">
     <article v-for="(annex, index) in [null, ...annexes]" :key="index" class="fm-page" :data-form-page="index + 1">
       <header class="form-header">
-        <img :src="atsLogo" alt="Atthasan" class="ats-logo" />
+        <img v-if="logo" :src="logo" :alt="ticketCompany(ticket.details)?.name || 'Atthasan'" class="ats-logo" /><span v-else class="ats-logo" />
         <h1>แบบฟอร์มร้องขอดำเนินการด้าน IT (IT Request Form)</h1>
         <p v-if="statusLabel" class="document-status">{{ statusLabel }}</p>
       </header>
@@ -107,7 +113,7 @@ defineExpose({ prepare })
           <div class="action-box">
             <div class="action-line"><span :class="['checkbox', { checked: selected('replace_device') }]" /><span>เปลี่ยนอุปกรณ์</span></div>
             <div class="action-line"><span :class="['checkbox', { checked: selected('install') }]" /><span class="install-label">Format ติดตั้ง OS ใหม่ / ติดตั้งโปรแกรม / Update โปรแกรม / เปลี่ยน OS เป็น<span class="short-fill">{{ field('os_target') || '...............................' }}</span></span></div>
-            <div class="action-line split-actions"><span class="printed-choice"><span :class="['checkbox', { checked: selected('remote_vpn') }]" /> ขอรีโมท/VPN</span><span class="printed-choice"><span :class="['checkbox', { checked: selected('company_email') }]" /> ขอ E-mail บริษัท</span></div>
+            <div class="action-line split-actions"><span class="printed-choice"><span :class="['checkbox', { checked: selected('remote_vpn') }]" /> ขอรีโมท/VPN</span><span v-if="selected('company_email')" class="printed-choice"><span class="checkbox checked" /> ขอ E-mail บริษัท</span></div>
             <div class="action-line"><span :class="['checkbox', { checked: selected('access') }]" /><span>ขอเพิ่มสิทธิ์/เปลี่ยนสิทธิ์การเข้าระบบ</span></div>
             <div class="action-line"><span :class="['checkbox', { checked: selected('other') }]" /><span>อื่นๆ</span><span class="other-fill">{{ field('other_text') || '\u00a0' }}</span></div>
           </div>
@@ -179,6 +185,8 @@ th { font-weight: 700; }
 .lined-table th { height: 5.5mm; text-align: center; }
 .lined-table td { white-space: pre; }
 .row-number { text-align: center; font-size: 8pt; }
+/* Signature slots sit right under the tables here, so ink stays inside the 10 mm slot instead of rising above the line. */
+.service-request-print :deep(.signature-line img) { height: 10mm; }
 .signature-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-items: center; min-height: 24mm; break-inside: avoid; }
 .request-signatures { padding: 0 16mm; }
 .result-section { margin-top: 5mm; }

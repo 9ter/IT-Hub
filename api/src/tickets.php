@@ -15,7 +15,7 @@ function asset_public(string $code): array
     $asset = find_asset_by_code($code) ?? fail('ไม่พบอุปกรณ์รหัส ' . $code, 404);
 
     $stmt = db()->prepare("SELECT ticket_no, type, status, created_at FROM tickets
-        WHERE asset_id = ? AND type = 'repair' AND status IN ('" . implode("','", TICKET_OPEN_STATUSES) . "') ORDER BY created_at DESC");
+        WHERE asset_id = ? AND type = 'repair' AND deleted_at IS NULL AND status IN ('" . implode("','", TICKET_OPEN_STATUSES) . "') ORDER BY created_at DESC");
     $stmt->execute([$asset['id']]);
     $open = $stmt->fetchAll();
 
@@ -84,8 +84,10 @@ function create_ticket(array $body, ?array $photo): array
     [$details, $title] = $def['parse']($in, $asset);
     $requiresApproval = in_array($type,['service','purchase'],true);
     $approver = $requiresApproval ? approval_employee($in) : null;
-    $requesterSignature = $requiresApproval ? validate_signature($in, 'requester_signature_data', 'ลายเซ็นผู้ร้องขอ') : null;
+    // FM-IT-003 has a ผู้แจ้งซ่อม signature but no approval before IT starts work.
+    $requesterSignature = ($requiresApproval || $type === 'repair') ? validate_signature($in, 'requester_signature_data', $type === 'repair' ? 'ลายเซ็นผู้แจ้งซ่อม' : 'ลายเซ็นผู้ร้องขอ') : null;
     if ($approver) $details['approver_name'] = $approver['full_name'];
+    if ($company = requester_company($in)) $details['requester_company'] = $company;
     $in->check();
 
     $photoPath = ($photo && ($photo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) ? store_upload($photo) : null;
@@ -150,7 +152,7 @@ function ticket_public(string $ticketNo): array
 {
     $stmt = db()->prepare('SELECT t.id, t.ticket_no, t.type, t.title, t.status, t.priority, t.resolution,
             t.created_at, t.started_at, t.finished_at, a.asset_code
-        FROM tickets t LEFT JOIN assets a ON a.id = t.asset_id AND t.type = \'repair\' WHERE t.ticket_no = ?');
+        FROM tickets t LEFT JOIN assets a ON a.id = t.asset_id AND t.type = \'repair\' WHERE t.ticket_no = ? AND t.deleted_at IS NULL');
     $stmt->execute([strtoupper(trim($ticketNo))]);
     $ticket = $stmt->fetch() ?: fail('ไม่พบคำขอเลขที่ ' . $ticketNo, 404);
 
@@ -172,9 +174,11 @@ function ticket_admin(int $id): array
         FROM tickets t
         LEFT JOIN assets a ON a.id = t.asset_id AND t.type = \'repair\'
         LEFT JOIN admins ad ON ad.id = t.assigned_to
-        WHERE t.id = ?');
+        WHERE t.id = ? AND t.deleted_at IS NULL');
     $stmt->execute([$id]);
     $ticket = $stmt->fetch() ?: fail('ไม่พบคำขอ', 404);
+    // Archive snapshots hash this payload; deletion metadata must not create a new PDF version.
+    unset($ticket['deleted_at'], $ticket['deleted_by'], $ticket['delete_reason']);
     // Old non-repair requests may still hold QR context; keep it out of detail and print payloads.
     if ($ticket['type'] !== 'repair') {
         $ticket['asset_id'] = null;
@@ -195,6 +199,10 @@ function ticket_admin(int $id): array
     if ($ticket['type']==='borrow') {
         $ticket['borrow_approval']=borrow_approval_for_ticket($ticket);
         $ticket['details']['borrow_items']=borrow_items_for_details($ticket['details']);
+        // Added only when relevant so archived snapshots of untouched borrow tickets stay byte-identical.
+        if (borrow_request_editable($ticket)) $ticket['request_edit_version']=request_edit_version($ticket);
+        $history=request_edit_history($id);
+        if ($history) $ticket['request_edit_history']=$history;
     }
     if ($ticket['type']==='purchase') {
         $ticket['request_edit_version']=request_edit_version($ticket);
@@ -204,6 +212,7 @@ function ticket_admin(int $id): array
         $ticket['purchase_fields']=purchase_fields($ticket);
         $ticket['purchase_approvals']=purchase_approvals_for_ticket($ticket);
         $ticket['purchase_signing_roles']=PURCHASE_SIGNING_ROLES;
+        $ticket['purchase_default_approver_ids']=purchase_default_approver_ids();
         $ticket['print_form']=document_forms()['FM-IT-007'];
         foreach ($ticket['print_form']['roles'] as &$role) {
             if ($role['key']==='head') $role['label']=ticket_approval_role('purchase');
@@ -226,7 +235,7 @@ function format_duration(string $from, string $to): string
 
 function update_ticket(int $id, array $body, array $admin): array
 {
-    $stmt = db()->prepare('SELECT * FROM tickets WHERE id = ?');
+    $stmt = db()->prepare('SELECT * FROM tickets WHERE id = ? AND deleted_at IS NULL');
     $stmt->execute([$id]);
     $ticket = $stmt->fetch() ?: fail('ไม่พบคำขอ', 404);
 
@@ -291,9 +300,9 @@ function update_ticket(int $id, array $body, array $admin): array
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $lock = $pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');
+        $lock = $pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');
         $lock->execute([$id]);
-        $current = $lock->fetch();
+        $current = $lock->fetch() ?: fail('ไม่พบคำขอ', 404);
         if ($current['status'] !== $ticket['status']) fail('สถานะเปลี่ยนแล้ว กรุณาโหลดคำขอใหม่', 409);
         if($ticket['type']==='purchase' && isset($body['work_revision']) && (int)$body['work_revision']!==(int)$current['completion_revision'])fail('ข้อมูลใบขอซื้อเปลี่ยนแล้ว กรุณาโหลดใหม่ก่อนบันทึก',409);
         $approval = approval_for_ticket($id);

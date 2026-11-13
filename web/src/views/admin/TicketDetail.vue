@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { api, ApiError, photoUrl, type AdminRow, type Ticket, type TicketStatus, type Approver, type PurchaseFields, type BorrowItem, type ArchiveStatus } from '@/api'
 import Icon from '@/components/Icon.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -8,9 +8,14 @@ import DocumentPrint from '@/components/DocumentPrint.vue'
 import PurchaseSignatures from '@/components/PurchaseSignatures.vue'
 import RequestEditControls from '@/components/RequestEditControls.vue'
 import { purchasePrintDocument } from '@/purchasePrint'
+import SignatureImage from '@/components/SignatureImage.vue'
+import { signaturesReady } from '@/signatureTrim'
+import { purchaseItemLabels } from '@/requestEdits'
 import { fmtDate, fmtDateTime } from '@/format'
+import { markSignaturesRead, markTicketRead, signedNotices } from '@/notifications'
 import { auth, meta, toast } from '@/store'
 import { typeInfo } from '@/ticketTypes'
+import { DEFAULT_COMPANY_NAME, ticketCompany } from '@/companies'
 
 const props = defineProps<{ id: number }>()
 
@@ -39,7 +44,7 @@ async function refreshArchive(retry=false){
 }
 const borrowDeciding = ref(false),borrowNote = ref('')
 async function decideBorrow(decision:'approved'|'rejected') {
-  if(borrowDeciding.value||saving.value)return
+  if(borrowDeciding.value||saving.value||purchaseBusy.value)return
   borrowDeciding.value=true
   const decidingId=props.id
   try {
@@ -69,7 +74,7 @@ async function requestCompletion() {
     ticket.value = t
     selectedCompletionApprover.value = t.completion_approval?.employee_id ?? t.default_completion_approver_id ?? ''
     f.resolution = t.resolution || ''
-    if (t.completion_approval?.mail_status === 'sent') toast('ส่งอีเมลขอลายเซ็น ผอ./ผจก. ก่อนปิดงานแล้ว')
+    if (t.completion_approval?.mail_status === 'sent') toast(t.type === 'repair' ? 'ส่งอีเมลขอลายเซ็น ผอ./ผจก. รับรองผลงานซ่อมแล้ว' : 'ส่งอีเมลขอลายเซ็น ผอ./ผจก. ก่อนปิดงานแล้ว')
     else toast(t.completion_approval?.mail_error || 'บันทึกผลแล้ว แต่ส่งอีเมลไม่สำเร็จ', 'error')
   } catch(e) { if (e instanceof ApiError) errors.value = e.errors; toast((e as Error).message,'error') }
   finally { sendingCompletion.value = false }
@@ -131,13 +136,28 @@ watch(
     error.value = ''
     borrowNote.value = ''
     try {
-      fill(await api.get<Ticket>(`/admin/tickets/${id}`))
+      const loaded = await api.get<Ticket>(`/admin/tickets/${id}`)
+      fill(loaded)
+      if (loaded.status === 'new') markTicketRead(id)
+      markSignaturesRead(id)
     } catch (e) {
       error.value = (e as Error).message
     }
   },
   { immediate: true },
 )
+
+// มีผู้ลงนามใบนี้ขณะเปิดหน้าค้างไว้ (กระดิ่งแจ้งเข้ามา) → โหลดข้อมูลใหม่โดยไม่ทิ้งข้อความที่กำลังแก้ แล้วถือว่าเห็นแล้ว
+const signedHere = computed(() => signedNotices.value.filter((n) => n.ticket_id === props.id).map((n) => n.id).join(','))
+watch(signedHere, async (ids) => {
+  const id = props.id
+  if (!ids || ticket.value?.id !== id) return
+  try {
+    const updated = await api.get<Ticket>(`/admin/tickets/${id}`)
+    if (props.id === id && ticket.value?.id === id) applyPurchaseUpdate(updated, true)
+  } catch { /* โหลดไม่สำเร็จ ข้อมูลเดิมยังอยู่ */ }
+  markSignaturesRead(id)
+})
 api.get<AdminRow[]>('/admin/admins').then((a) => (admins.value = a))
 api.get<Approver[]>('/approvers').then((a) => (approvers.value = a)).catch(() => {})
 
@@ -187,6 +207,8 @@ const quick = computed(() => {
   return list
 })
 
+// FM-IT-003 ผอ./ผจก. sign-off: optional, never blocks closing, may be requested after done.
+const repairSignoff = computed(() => ticket.value?.type === 'repair')
 const isClosed = computed(() => ['done', 'rejected', 'cancelled'].includes(ticket.value?.status ?? ''))
 const borrowItems=computed<BorrowItem[]>(()=>{
   if(ticket.value?.type!=='borrow')return []
@@ -238,7 +260,7 @@ const detailRows = computed(() => {
         ['ตำแหน่ง', d.position as string],
         ['ความต้องการ', d.urgent ? 'ด่วน' : 'ไม่ด่วน'],
         ['ต้องการภายใน', d.need_by ? fmtDate(d.need_by as string) : null],
-        ['ประเภทอุปกรณ์', list(d.items, m.purchase_items)],
+        ['ประเภทอุปกรณ์ / จำนวน', purchaseItemLabels(d.items, d.item_quantities, d.item_details, d.item_other).join(', ') || null],
         ['CPU', d.spec_cpu as string],
         ['RAM', d.spec_ram as string],
         ['SSD/HDD', d.spec_storage as string],
@@ -257,12 +279,16 @@ const approvalLabel = computed(()=>ticket.value?.type==='purchase'?'ผู้ม
 async function printForm() {
   await servicePrint.value?.prepare()
   await purchasePrint.value?.prepare()
+  await signaturesReady()
+  await nextTick()
+  await Promise.all(Array.from(document.querySelectorAll<HTMLImageElement>('img')).map(img => img.decode().catch(() => {})))
   window.print()
 }
 
 const signatures = computed(() =>
   ticket.value?.type === 'repair'
-    ? ['ผู้แจ้งซ่อม / ผู้ตรวจรับงาน', 'เจ้าหน้าที่ฝ่ายเทคโนโลยีสารสนเทศ', 'ผอ./ผจก. ฝ่ายสนับสนุนและติดตั้ง']
+    // FM-IT-003: requester signs at submission; acceptance after repair stays a separate slot as on the paper form.
+    ? ['ผู้แจ้งซ่อม', 'เจ้าหน้าที่ฝ่ายเทคโนโลยีสารสนเทศ', 'ผู้แจ้งซ่อม / ผู้ตรวจรับงาน', 'ผอ./ผจก. ฝ่ายสนับสนุนและติดตั้ง']
     : ticket.value?.type === 'service'
     ? ['ผู้ร้องขอ', 'หัวหน้าฝ่าย / ผู้อนุมัติ', 'เจ้าหน้าที่เทคโนโลยีสารสนเทศ', 'ผอ./ผจก. ฝ่ายสนับสนุนและติดตั้ง', 'ผู้ช่วยกรรมการผู้จัดการ']
     : ['ผู้ร้องขอ', 'หัวหน้าฝ่าย / ผู้อนุมัติ', 'เจ้าหน้าที่ฝ่ายเทคโนโลยีสารสนเทศ'],
@@ -291,6 +317,21 @@ const signatures = computed(() =>
 
     <div class="mt-6 grid gap-6 lg:grid-cols-3 no-print">
       <div class="min-w-0 space-y-6 lg:col-span-2">
+        <section class="card p-5">
+          <h2 class="font-semibold">รายละเอียด</h2>
+          <p class="mt-3 whitespace-pre-line text-slate-800 dark:text-slate-200">{{ ticket.description }}</p>
+          <div v-if="ticket.type==='borrow'" class="table-wrap mt-4"><table class="table"><thead><tr><th>#</th><th>ประเภท</th><th>อุปกรณ์ที่ขอเบิก–ยืม</th><th>จำนวน</th></tr></thead><tbody><tr v-for="(item,i) in borrowItems" :key="i"><td>{{i+1}}</td><td>{{item.device_kind==='notebook'?'Notebook':'อื่นๆ'}}</td><td class="whitespace-pre-wrap break-words">{{item.item}}</td><td>{{item.quantity}}</td></tr></tbody></table></div>
+          <dl v-if="detailRows.length" class="mt-4 grid gap-x-6 gap-y-3 border-t border-slate-100 dark:border-slate-700 pt-4 text-sm sm:grid-cols-2">
+            <div v-for="[label, value] in detailRows" :key="label">
+              <dt class="text-slate-500 dark:text-slate-400">{{ label }}</dt>
+              <dd class="font-medium">{{ value }}</dd>
+            </div>
+          </dl>
+          <button v-if="ticket.has_photo" class="mt-4 block" @click="photoOpen = true">
+            <img :src="photoUrl(ticket.id)" alt="รูปที่แนบ" class="max-h-56 rounded-xl border border-slate-200" />
+          </button>
+          <RequestEditControls v-if="ticket.type==='purchase'||ticket.type==='borrow'" :key="ticket.id" :ticket="ticket" :busy="saving||purchaseBusy||sendingCompletion||borrowDeciding" @updated="applyPurchaseUpdate" @busy="purchaseBusy=$event" />
+        </section>
         <section v-if="ticket.status==='done'||ticket.nas_archive" class="card space-y-3 p-5">
           <h2 class="font-semibold">ไฟล์เอกสารบน NAS</h2><p class="font-medium">{{archiveLabels[ticket.nas_archive?.status||'']||'ยังไม่ได้เข้าคิวส่งเอกสาร'}}</p>
           <p v-if="ticket.nas_archive?.filename" class="break-all font-mono text-sm">{{ticket.nas_archive.relative_path||ticket.nas_archive.filename}}</p><p v-if="ticket.nas_archive?.sent_at" class="text-sm text-slate-500 dark:text-slate-400">ส่งเมื่อ {{fmtDateTime(ticket.nas_archive.sent_at)}}</p>
@@ -305,7 +346,7 @@ const signatures = computed(() =>
             <p class="text-sm text-slate-600 dark:text-slate-300">ตรวจสอบผู้ยืม อุปกรณ์ จำนวน และช่วงเวลา เมื่ออนุมัติระบบจะเพิ่มเข้าบันทึก FM-IT-008 โดยอัตโนมัติ</p>
             <label for="borrow-decision-note" class="label">หมายเหตุ / เหตุผลที่ไม่อนุมัติ (ผู้ร้องขอเห็น)</label>
             <textarea id="borrow-decision-note" v-model="borrowNote" class="input" rows="3" maxlength="2000" />
-            <div class="flex flex-wrap gap-3"><button class="btn-primary" :disabled="borrowDeciding||saving" @click="decideBorrow('approved')">{{borrowDeciding?'กำลังบันทึก...':'อนุมัติและเพิ่มเข้าบันทึก FM-IT-008'}}</button><button class="btn-secondary text-red-700 dark:text-red-300" :disabled="borrowDeciding||saving||!borrowNote.trim()" @click="decideBorrow('rejected')">ไม่อนุมัติการเบิก–ยืม</button></div>
+            <div class="flex flex-wrap gap-3"><button class="btn-primary" :disabled="borrowDeciding||saving||purchaseBusy" @click="decideBorrow('approved')">{{borrowDeciding?'กำลังบันทึก...':'อนุมัติและเพิ่มเข้าบันทึก FM-IT-008'}}</button><button class="btn-secondary text-red-700 dark:text-red-300" :disabled="borrowDeciding||saving||purchaseBusy||!borrowNote.trim()" @click="decideBorrow('rejected')">ไม่อนุมัติการเบิก–ยืม</button></div>
             <p class="text-xs text-slate-500 dark:text-slate-400">หากไม่อนุมัติ กรุณาระบุเหตุผล คำขอนี้จะไม่เข้าบันทึก</p>
           </template>
           <template v-else>
@@ -331,27 +372,28 @@ const signatures = computed(() =>
             <button v-if="!['done','rejected','cancelled'].includes(ticket.status)" class="btn-secondary" :disabled="sendingApproval" @click="resendApproval">{{ sendingApproval ? 'กำลังส่ง...' : 'ส่งอีเมลขอลงนามใหม่' }}</button>
           </template>
           <template v-else>
-            <img v-if="ticket.approval.signature_data" :src="ticket.approval.signature_data" alt="ลายเซ็นผู้อนุมัติ" class="bg-white rounded h-24 max-w-full object-contain" />
+            <SignatureImage v-if="ticket.approval.signature_data" :src="ticket.approval.signature_data" alt="ลายเซ็นผู้อนุมัติ" class="bg-white rounded h-24 max-w-full object-contain" />
             <p class="text-sm">ลงนามเมื่อ {{ fmtDateTime(ticket.approval.signed_at) }}</p>
             <p v-if="ticket.approval.decision_note" class="whitespace-pre-wrap text-sm">หมายเหตุ: {{ ticket.approval.decision_note }}</p>
           </template>
         </section>
-        <section v-if="ticket.completion_required && (!isClosed || ticket.completion_approval)" class="card space-y-3 p-5">
-          <h2 class="font-semibold">ผอ./ผจก. รับรองผลก่อนปิดงาน</h2>
+        <section v-if="(ticket.completion_required && (!isClosed || ticket.completion_approval)) || (repairSignoff && (ticket.status === 'done' || !isClosed || ticket.completion_approval))" class="card space-y-3 p-5">
+          <h2 class="font-semibold">{{ repairSignoff ? 'ผอ./ผจก. ลงนามรับรองผลงานซ่อม' : 'ผอ./ผจก. รับรองผลก่อนปิดงาน' }}</h2>
           <p v-if="approvalBlocked" class="text-sm text-amber-800 dark:text-amber-300">รอหัวหน้าฝ่ายลงนามอนุมัติก่อนขอรับรองผลการดำเนินการ</p>
+          <p v-else-if="repairSignoff" class="text-sm text-slate-600 dark:text-slate-300">กรอกรายละเอียดการแก้ปัญหา เลือกผู้รับรอง แล้วส่งอีเมลขอลายเซ็น ไม่บังคับ — ปิดงานได้โดยไม่ต้องรอ และลงนามหลังปิดงานได้</p>
           <p v-else class="text-sm text-slate-600 dark:text-slate-300">กรอกผลการดำเนินการ เลือกผู้รับรอง แล้วส่งอีเมลขอลายเซ็น เมื่อรับรองผลแล้ว IT จึงปิดงานเป็นเสร็จสิ้นได้</p>
           <template v-if="ticket.completion_approval">
             <p class="font-medium">{{ ticket.completion_approval.approver_name }} · {{ ticket.completion_approval.approver_email }}</p>
-            <p v-if="!ticket.completion_approval_current || (ticket.resolution || '') !== f.resolution.trim()" class="rounded-lg bg-amber-50 dark:bg-amber-900/40 p-3 text-sm text-amber-800 dark:text-amber-300">ผลการดำเนินการมีการแก้ไข ต้องส่งขอลายเซ็นรับรองใหม่ก่อนปิดงาน</p>
-            <p v-else class="font-medium text-brand-700 dark:text-brand-300">{{ {pending:'รอ ผอ./ผจก. ลงนามรับรองผล',approved:'ลงนามรับรองผลแล้ว พร้อมปิดงาน',rejected:'ไม่รับรองผล กรุณาตรวจสอบและส่งใหม่'}[ticket.completion_approval.status] }}</p>
+            <p v-if="!ticket.completion_approval_current || (ticket.resolution || '') !== f.resolution.trim()" class="rounded-lg bg-amber-50 dark:bg-amber-900/40 p-3 text-sm text-amber-800 dark:text-amber-300">ผลการดำเนินการมีการแก้ไข ต้องส่งขอลายเซ็นรับรองใหม่{{ repairSignoff ? '' : 'ก่อนปิดงาน' }}</p>
+            <p v-else class="font-medium text-brand-700 dark:text-brand-300">{{ {pending:'รอ ผอ./ผจก. ลงนามรับรองผล',approved:repairSignoff?'ลงนามรับรองผลแล้ว':'ลงนามรับรองผลแล้ว พร้อมปิดงาน',rejected:'ไม่รับรองผล กรุณาตรวจสอบและส่งใหม่'}[ticket.completion_approval.status] }}</p>
             <p v-if="ticket.completion_approval.mail_status === 'failed'" class="text-sm text-red-700 dark:text-red-300">{{ ticket.completion_approval.mail_error }}</p>
             <p v-else-if="ticket.completion_approval.mail_sent_at" class="text-xs text-slate-500 dark:text-slate-400">ส่งอีเมลเมื่อ {{ fmtDateTime(ticket.completion_approval.mail_sent_at) }} · ลิงก์หมดอายุ {{ fmtDateTime(ticket.completion_approval.expires_at) }}</p>
-            <img v-if="ticket.completion_approval.signature_data" :src="ticket.completion_approval.signature_data" alt="ลายเซ็น ผอ./ผจก." class="bg-white rounded h-24 max-w-full object-contain" />
+            <SignatureImage v-if="ticket.completion_approval.signature_data" :src="ticket.completion_approval.signature_data" alt="ลายเซ็น ผอ./ผจก." class="bg-white rounded h-24 max-w-full object-contain" />
             <p v-if="ticket.completion_approval.signed_at" class="text-sm">ลงนามเมื่อ {{ fmtDateTime(ticket.completion_approval.signed_at) }}</p>
             <p v-if="ticket.completion_approval.decision_note" class="whitespace-pre-wrap text-sm">หมายเหตุ: {{ ticket.completion_approval.decision_note }}</p>
             <details class="text-sm"><summary class="cursor-pointer text-slate-500 dark:text-slate-400">ผลที่ส่งขอรับรอง</summary><p class="mt-2 whitespace-pre-wrap">{{ ticket.completion_approval.resolution_snapshot }}</p></details>
           </template>
-          <template v-if="!isClosed && !completionApproved">
+          <template v-if="(!isClosed || (repairSignoff && ticket.status === 'done')) && !completionApproved">
             <label for="completion_approver" class="label">ผอ./ผจก. ผู้รับรองผล</label>
             <select id="completion_approver" v-model="selectedCompletionApprover" class="input" :disabled="approvalBlocked || sendingCompletion">
               <option value="" disabled>เลือกผู้รับรองผล</option>
@@ -367,7 +409,7 @@ const signatures = computed(() =>
         <section v-else-if="ticket.type!=='borrow'" class="card space-y-3 p-5">
           <h2 class="font-semibold">เจ้าหน้าที่เทคโนโลยีสารสนเทศ</h2>
           <template v-if="ticket.it_signature">
-            <img :src="ticket.it_signature.signature_data" alt="ลายเซ็นเจ้าหน้าที่ IT" class="bg-white rounded h-24 max-w-full object-contain" />
+            <SignatureImage :src="ticket.it_signature.signature_data" alt="ลายเซ็นเจ้าหน้าที่ IT" class="bg-white rounded h-24 max-w-full object-contain" />
             <p class="font-medium">{{ ticket.it_signature.signer_name }}</p>
             <p class="text-sm text-slate-500 dark:text-slate-400">ลงนามเมื่อ {{ fmtDateTime(ticket.it_signature.signed_at) }}</p>
           </template>
@@ -377,21 +419,6 @@ const signatures = computed(() =>
             <p v-if="(ticket.resolution || '') !== f.resolution.trim() || !ticket.resolution" class="text-xs text-slate-500 dark:text-slate-400">กรุณาบันทึกผลการดำเนินการก่อนลงนามในใบงานนี้</p>
             <button v-if="ownSignatureAvailable && !['rejected','cancelled'].includes(ticket.status)" class="btn-secondary" :disabled="signingIt || saving || sendingCompletion || approvalBlocked || !ticket.resolution || (ticket.resolution || '') !== f.resolution.trim()" @click="signIt">{{ signingIt ? 'กำลังลงนาม...' : 'ลงนามเจ้าหน้าที่ IT ด้วยลายเซ็นของฉัน' }}</button>
           </template>
-        </section>
-        <section class="card p-5">
-          <h2 class="font-semibold">รายละเอียด</h2>
-          <p class="mt-3 whitespace-pre-line text-slate-800 dark:text-slate-200">{{ ticket.description }}</p>
-          <div v-if="ticket.type==='borrow'" class="table-wrap mt-4"><table class="table"><thead><tr><th>#</th><th>ประเภท</th><th>อุปกรณ์ที่ขอเบิก–ยืม</th><th>จำนวน</th></tr></thead><tbody><tr v-for="(item,i) in borrowItems" :key="i"><td>{{i+1}}</td><td>{{item.device_kind==='notebook'?'Notebook':'อื่นๆ'}}</td><td class="whitespace-pre-wrap break-words">{{item.item}}</td><td>{{item.quantity}}</td></tr></tbody></table></div>
-          <dl v-if="detailRows.length" class="mt-4 grid gap-x-6 gap-y-3 border-t border-slate-100 dark:border-slate-700 pt-4 text-sm sm:grid-cols-2">
-            <div v-for="[label, value] in detailRows" :key="label">
-              <dt class="text-slate-500 dark:text-slate-400">{{ label }}</dt>
-              <dd class="font-medium">{{ value }}</dd>
-            </div>
-          </dl>
-          <button v-if="ticket.has_photo" class="mt-4 block" @click="photoOpen = true">
-            <img :src="photoUrl(ticket.id)" alt="รูปที่แนบ" class="max-h-56 rounded-xl border border-slate-200" />
-          </button>
-          <RequestEditControls v-if="ticket.type==='purchase'" :key="ticket.id" :ticket="ticket" :busy="saving||purchaseBusy||sendingCompletion" @updated="applyPurchaseUpdate" @busy="purchaseBusy=$event" />
         </section>
 
         <section class="card p-5">
@@ -419,7 +446,7 @@ const signatures = computed(() =>
           <h2 class="font-semibold">ผู้แจ้ง</h2>
           <dl class="mt-3 space-y-2">
             <div class="flex gap-2"><Icon name="user" :size="16" class="mt-0.5 text-slate-400" /><dd>{{ ticket.requester_name }}</dd></div>
-            <div class="flex gap-2"><Icon name="building" :size="16" class="mt-0.5 text-slate-400" /><dd>{{ ticket.requester_dept ?? '-' }}</dd></div>
+            <div class="flex gap-2"><Icon name="building" :size="16" class="mt-0.5 text-slate-400" /><dd>{{ ticket.requester_dept ?? '-' }}<span v-if="ticketCompany(ticket.details)" class="block text-xs text-slate-500 dark:text-slate-400">{{ ticketCompany(ticket.details)!.name }}</span></dd></div>
             <div v-if="ticket.requester_phone" class="flex gap-2">
               <Icon name="device" :size="16" class="mt-0.5 text-slate-400" /><a :href="`tel:${ticket.requester_phone}`" class="text-brand-700 dark:text-brand-300">{{ ticket.requester_phone }}</a>
             </div>
@@ -429,8 +456,8 @@ const signatures = computed(() =>
             <div v-if="ticket.location" class="flex gap-2"><Icon name="pin" :size="16" class="mt-0.5 text-slate-400" /><dd>{{ ticket.location }}</dd></div>
           </dl>
           <div v-if="ticket.requester_signature" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3">
-            <p class="font-medium">ลายเซ็นผู้ร้องขอ</p>
-            <img :src="ticket.requester_signature.signature_data" alt="ลายเซ็นผู้ร้องขอ" class="bg-white rounded h-20 max-w-full object-contain" />
+            <p class="font-medium">{{ ticket.type === 'repair' ? 'ลายเซ็นผู้แจ้งซ่อม' : 'ลายเซ็นผู้ร้องขอ' }}</p>
+            <SignatureImage :src="ticket.requester_signature.signature_data" alt="ลายเซ็นผู้ร้องขอ" class="bg-white rounded h-20 max-w-full object-contain" />
             <p>{{ ticket.requester_signature.requester_name }}</p>
             <p class="text-xs text-slate-500 dark:text-slate-400">ลงนามเมื่อ {{ fmtDateTime(ticket.requester_signature.signed_at) }}</p>
           </div>
@@ -519,7 +546,7 @@ const signatures = computed(() =>
       <header class="flex items-start justify-between border-b-2 border-black pb-2">
         <div>
           <p class="text-lg font-bold">{{ meta?.ticket_types[ticket.type].label }}</p>
-          <p>บริษัท อัตถสาร จำกัด · ฝ่ายเทคโนโลยีสารสนเทศ</p>
+          <p>{{ ticketCompany(ticket.details)?.name ?? DEFAULT_COMPANY_NAME }} · ฝ่ายเทคโนโลยีสารสนเทศ</p>
         </div>
         <div class="text-right">
           <p>เลขที่ <b class="font-mono">{{ ticket.ticket_no }}</b></p>
@@ -544,36 +571,36 @@ const signatures = computed(() =>
           <tr><td class="font-semibold">ระยะเวลา</td><td>เริ่ม {{ fmtDateTime(ticket.started_at) }} — แล้วเสร็จ {{ fmtDateTime(ticket.finished_at) }}</td></tr>
         </tbody>
       </table>
-      <div class="mt-8 grid grid-cols-3 gap-x-6 gap-y-4 text-center">
+      <div :class="['mt-8 grid gap-x-6 gap-y-4 text-center', ticket.type === 'repair' ? 'grid-cols-2' : 'grid-cols-3']">
         <div v-for="s in signatures" :key="s" class="break-inside-avoid">
-          <template v-if="s === 'ผู้ร้องขอ'">
-            <img v-if="ticket.requester_signature" :src="ticket.requester_signature.signature_data" alt="ลายเซ็นผู้ร้องขอ" class="bg-white rounded mx-auto h-16 max-w-full object-contain" />
-            <p v-else>.......................................................</p>
+          <template v-if="s === 'ผู้ร้องขอ' || s === 'ผู้แจ้งซ่อม'">
+            <SignatureImage v-if="ticket.requester_signature" :src="ticket.requester_signature.signature_data" alt="ลายเซ็นผู้ร้องขอ" class="bg-white rounded mx-auto h-16 max-w-full object-contain" />
+            <p v-else class="flex h-16 items-end justify-center">.......................................................</p>
             <p class="mt-1">({{ ticket.requester_signature?.requester_name || ticket.requester_name }})</p>
             <p class="mt-1 font-semibold">{{ s }}</p>
             <p v-if="ticket.requester_signature">ลงนาม · {{ fmtDateTime(ticket.requester_signature.signed_at) }}</p>
             <p v-else class="mt-1">วันที่ ......../......../........</p>
           </template>
           <template v-else-if="s === 'หัวหน้าฝ่าย / ผู้อนุมัติ' && ticket.approval?.signature_data">
-            <img :src="ticket.approval.signature_data" alt="ลายเซ็นผู้อนุมัติ" class="bg-white rounded mx-auto h-16 max-w-full object-contain" />
+            <SignatureImage :src="ticket.approval.signature_data" alt="ลายเซ็นผู้อนุมัติ" class="bg-white rounded mx-auto h-16 max-w-full object-contain" />
             <p>({{ ticket.approval.approver_name }})</p>
             <p class="mt-1 font-semibold">{{ s }}</p>
             <p>{{ ticket.approval.status === 'approved' ? 'อนุมัติ' : 'ไม่อนุมัติ' }} · {{ fmtDateTime(ticket.approval.signed_at) }}</p>
           </template>
           <template v-else-if="s === 'ผอ./ผจก. ฝ่ายสนับสนุนและติดตั้ง' && ticket.completion_approval_current && ticket.completion_approval?.signature_data">
-            <img :src="ticket.completion_approval.signature_data" alt="ลายเซ็น ผอ./ผจก." class="bg-white rounded mx-auto h-16 max-w-full object-contain" />
+            <SignatureImage :src="ticket.completion_approval.signature_data" alt="ลายเซ็น ผอ./ผจก." class="bg-white rounded mx-auto h-16 max-w-full object-contain" />
             <p>({{ ticket.completion_approval.approver_name }})</p>
             <p class="mt-1 font-semibold">{{ s }}</p>
             <p>{{ ticket.completion_approval.status === 'approved' ? 'รับรองผล' : 'ไม่รับรองผล' }} · {{ fmtDateTime(ticket.completion_approval.signed_at) }}</p>
           </template>
           <template v-else-if="(s === 'เจ้าหน้าที่เทคโนโลยีสารสนเทศ' || s === 'เจ้าหน้าที่ฝ่ายเทคโนโลยีสารสนเทศ') && ticket.it_signature">
-            <img :src="ticket.it_signature.signature_data" alt="ลายเซ็นเจ้าหน้าที่ IT" class="bg-white rounded mx-auto h-16 max-w-full object-contain" />
+            <SignatureImage :src="ticket.it_signature.signature_data" alt="ลายเซ็นเจ้าหน้าที่ IT" class="bg-white rounded mx-auto h-16 max-w-full object-contain" />
             <p>({{ ticket.it_signature.signer_name }})</p>
             <p class="mt-1 font-semibold">{{ s }}</p>
             <p>ลงนาม · {{ fmtDateTime(ticket.it_signature.signed_at) }}</p>
           </template>
           <template v-else>
-          <p>.......................................................</p>
+          <p class="flex h-16 items-end justify-center">.......................................................</p>
           <p v-if="s === 'ผอ./ผจก. ฝ่ายสนับสนุนและติดตั้ง' && ticket.completion_approval" class="mt-1">({{ ticket.completion_approval.approver_name }})</p>
           <p v-else-if="s === 'หัวหน้าฝ่าย / ผู้อนุมัติ' && (ticket.approval?.approver_name || ticket.details.approver_name)" class="mt-1">({{ ticket.approval?.approver_name || ticket.details.approver_name }})</p>
           <p v-else-if="(s === 'เจ้าหน้าที่เทคโนโลยีสารสนเทศ' || s === 'เจ้าหน้าที่ฝ่ายเทคโนโลยีสารสนเทศ') && ticket.assigned_name" class="mt-1">({{ ticket.assigned_name }})</p>

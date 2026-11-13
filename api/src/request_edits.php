@@ -1,19 +1,40 @@
 <?php
 declare(strict_types=1);
 
-const REQUEST_EDIT_FIELDS = ['description','position','urgent','need_by','items','spec_cpu','spec_ram','spec_storage','spec_display','spec_other'];
+const REQUEST_EDIT_FIELDS = ['description','position','urgent','need_by','items','item_quantities','item_details','item_other','spec_cpu','spec_ram','spec_storage','spec_display','spec_other'];
+/** Borrow requests: what the requester asked for. Approval/register data is never edited here. */
+const BORROW_EDIT_FIELDS = ['description','borrow_items','start_date','end_date'];
 
 function request_edit_allowed(array $ticket): void
 {
-    if ($ticket['type'] !== 'purchase') fail('การแก้ไขนี้ใช้กับใบขอซื้อ FM-IT-007', 422);
+    if (!in_array($ticket['type'],['purchase','borrow'],true)) fail('การแก้ไขนี้ใช้กับใบขอซื้อ FM-IT-007 และคำขอเบิก–ยืม FM-IT-008', 422);
     if (in_array($ticket['status'], ['rejected','cancelled'], true)) fail('คำขอนี้ถูกปฏิเสธหรือยกเลิกแล้ว', 409);
+    if ($ticket['type']==='borrow' && !borrow_request_editable($ticket)) fail('คำขอเบิก–ยืมนี้พิจารณาแล้ว แก้ไขรายละเอียดได้เฉพาะก่อนอนุมัติ หากต้องแก้ข้อมูลหลังเข้าบันทึก FM-IT-008 ให้แก้ในบันทึกหรือส่งคำขอใหม่', 409);
+}
+
+/** Borrow details feed the FM-IT-008 register on approval, so they stay editable only until a decision exists. */
+function borrow_request_editable(array $ticket): bool
+{
+    if (in_array($ticket['status'],TICKET_CLOSED_STATUSES,true)) return false;
+    $s=db()->prepare('SELECT 1 FROM ticket_borrow_decisions WHERE ticket_id=?');$s->execute([$ticket['id']]);
+    return !$s->fetchColumn();
+}
+
+function request_edit_snapshot(array $ticket): string
+{
+    if ($ticket['type']==='purchase') return purchase_snapshot($ticket);
+    $request=is_array($ticket['details'])?$ticket['details']:json_decode($ticket['details']?:'{}',true);
+    // Old single-item requests compare equal to the same data saved as a list.
+    $request['borrow_items']=borrow_items_for_details($request);
+    return json_encode(['ticket_no'=>$ticket['ticket_no'],'description'=>$ticket['description'],
+        'requester_name'=>$ticket['requester_name'],'requester_dept'=>$ticket['requester_dept'],'request'=>$request],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 }
 
 function request_edit_version(array $ticket): string
 {
     $s=db()->prepare('SELECT COALESCE(MAX(id),0) FROM ticket_request_edits WHERE ticket_id=?');
     $s->execute([$ticket['id']]);
-    return hash('sha256',purchase_snapshot($ticket).':'.$ticket['completion_revision'].':'.$ticket['status'].':'.$s->fetchColumn());
+    return hash('sha256',request_edit_snapshot($ticket).':'.$ticket['completion_revision'].':'.$ticket['status'].':'.$s->fetchColumn());
 }
 
 function request_edit_check_version(array $ticket, array $body): void
@@ -49,6 +70,7 @@ function request_edit_preserves_approval(array $approval,array $ticket): bool
 function request_edit_apply(array $ticket,array $body,?array $admin,?int $returnId=null): void
 {
     request_edit_allowed($ticket);request_edit_check_version($ticket,$body);
+    if($ticket['type']==='borrow'){borrow_request_edit_apply($ticket,$body,$admin);return;}
     $data=$body['request']??null;
     if(!is_array($data) || array_diff(array_keys($data),REQUEST_EDIT_FIELDS))fail('รายละเอียดคำขอไม่ถูกต้อง',422);
     $old=json_decode($ticket['details']?:'{}',true);
@@ -62,7 +84,11 @@ function request_edit_apply(array $ticket,array $body,?array $admin,?int $return
     $reason=(new Input($body))->str('reason',2000);
     if($admin&& !$reason)$in->error('reason','กรุณาระบุเหตุผลการแก้ไข');
     $in->check();
-    $details=json_encode(array_replace($old,$parsed),JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+    $merged=array_replace($old,$parsed);
+    // Requests made before per-item details existed stay byte-identical when nothing was added.
+    if(!$merged['item_details'] && !array_key_exists('item_details',$old))unset($merged['item_details']);
+    if(!array_key_exists('item_other',$parsed))unset($merged['item_other']);
+    $details=json_encode($merged,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
     $next=[...$ticket,'description'=>$description,'details'=>$details];
     $before=purchase_snapshot($ticket);$after=purchase_snapshot($next);
     if($before!==$after){
@@ -74,11 +100,38 @@ function request_edit_apply(array $ticket,array $body,?array $admin,?int $return
         ->execute([$ticket['id'],$admin['id']??null,($admin?'Admin แก้ไขรายละเอียดคำขอ':'ผู้ขอส่งรายละเอียดที่แก้ไขกลับแล้ว').' โดยคงลายเซ็นเดิม']);
 }
 
+/** Admin-only correction of a borrow request before approval; there are no signatures on this form to preserve. */
+function borrow_request_edit_apply(array $ticket,array $body,?array $admin): void
+{
+    if(!$admin)fail('คำขอเบิก–ยืมแก้ไขได้โดย Admin IT Hub เท่านั้น',403);
+    $data=$body['request']??null;
+    if(!is_array($data) || array_diff(array_keys($data),BORROW_EDIT_FIELDS))fail('รายละเอียดคำขอไม่ถูกต้อง',422);
+    $old=json_decode($ticket['details']?:'{}',true);
+    $input=array_replace(['description'=>$ticket['description'],'borrow_items'=>borrow_items_for_details($old),
+        'start_date'=>$old['start_date']??null,'end_date'=>$old['end_date']??null],$data);
+    if(!is_array($input['borrow_items']))$input['borrow_items']=[];
+    $in=new Input($input);
+    $description=$in->str('description',5000,true,'วัตถุประสงค์การใช้งาน');
+    [$parsed,$title]=ticket_types()['borrow']['parse']($in);
+    $reason=(new Input($body))->str('reason',2000);
+    if(!$reason)$in->error('reason','กรุณาระบุเหตุผลการแก้ไข');
+    $in->check();
+    $details=json_encode(array_replace($old,$parsed),JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+    $next=[...$ticket,'description'=>$description,'details'=>$details];
+    $before=request_edit_snapshot($ticket);$after=request_edit_snapshot($next);
+    if($before===$after)fail('ไม่มีรายละเอียดที่เปลี่ยนแปลง',422);
+    db()->prepare('UPDATE tickets SET description=?,details=?,title=? WHERE id=?')->execute([$description,$details,mb_substr($title,0,200),$ticket['id']]);
+    db()->prepare('INSERT INTO ticket_request_edits(ticket_id,admin_id,edit_request_id,reason,before_snapshot,after_snapshot,work_revision) VALUES(?,?,?,?,?,?,?)')
+        ->execute([$ticket['id'],$admin['id'],null,$reason,$before,$after,$ticket['completion_revision']]);
+    db()->prepare('INSERT INTO ticket_logs(ticket_id,admin_id,note,is_public) VALUES(?,?,?,1)')
+        ->execute([$ticket['id'],$admin['id'],'Admin IT Hub แก้ไขรายละเอียดคำขอเบิก–ยืมก่อนอนุมัติ']);
+}
+
 function request_edit_admin(int $id,array $body,array $admin): array
 {
     $pdo=db();$pdo->beginTransaction();
     try{
-        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');$s->execute([$id]);$ticket=$s->fetch()?:fail('ไม่พบคำขอ',404);
+        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');$s->execute([$id]);$ticket=$s->fetch()?:fail('ไม่พบคำขอ',404);
         request_edit_apply($ticket,$body,$admin);
         archive_enqueue($id);$pdo->commit();
     }catch(Throwable $e){$pdo->rollBack();throw $e;}
@@ -90,8 +143,9 @@ function request_edit_return(int $id,array $body,array $admin): array
     $in=new Input($body);$reason=$in->str('reason',2000,true,'เหตุผลที่ส่งกลับ');$in->check();
     $pdo=db();$pdo->beginTransaction();
     try{
-        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');$s->execute([$id]);$ticket=$s->fetch()?:fail('ไม่พบคำขอ',404);
+        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');$s->execute([$id]);$ticket=$s->fetch()?:fail('ไม่พบคำขอ',404);
         request_edit_allowed($ticket);request_edit_check_version($ticket,$body);
+        if($ticket['type']!=='purchase')fail('การส่งกลับให้ผู้ขอแก้ไขใช้กับใบขอซื้อ FM-IT-007 เท่านั้น',422);
         if(!filter_var($ticket['requester_email'],FILTER_VALIDATE_EMAIL))fail('คำขอนี้ไม่มีอีเมลผู้ขอที่ถูกต้อง Admin สามารถแก้ไขรายละเอียดให้ได้',422);
         $previous=request_edit_latest($id);
         if($previous&&strtotime($previous['created_at'])>time()-60&&$previous['mail_status']!=='failed')fail('กรุณารอ 1 นาทีก่อนส่งกลับอีกครั้ง',429);
@@ -129,8 +183,8 @@ function request_edit_by_token(array $body): array
 function request_edit_view(array $body): array
 {
     $request=request_edit_by_token($body);
-    $s=db()->prepare('SELECT * FROM tickets WHERE id=?');$s->execute([$request['ticket_id']]);$ticket=$s->fetch()?:fail('ไม่พบคำขอ',404);
-    request_edit_allowed($ticket);$details=json_decode($ticket['details']?:'{}',true);
+    $s=db()->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL');$s->execute([$request['ticket_id']]);$ticket=$s->fetch()?:fail('ไม่พบคำขอ',404);
+    request_edit_allowed($ticket);if($ticket['type']!=='purchase')fail('ลิงก์ไม่ถูกต้องหรือหมดอายุ',404);$details=json_decode($ticket['details']?:'{}',true);
     return ['ticket_no'=>$ticket['ticket_no'],'requester_name'=>$ticket['requester_name'],'reason'=>$request['reason'],'expires_at'=>$request['expires_at'],
         'version'=>request_edit_version($ticket),'request'=>['description'=>$ticket['description'],...array_intersect_key($details,array_flip(REQUEST_EDIT_FIELDS))]];
 }
@@ -139,7 +193,7 @@ function request_edit_submit(array $body): array
 {
     $request=request_edit_by_token($body);$id=(int)$request['ticket_id'];$pdo=db();$pdo->beginTransaction();
     try{
-        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');$s->execute([$id]);$ticket=$s->fetch()?:fail('ไม่พบคำขอ',404);
+        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');$s->execute([$id]);$ticket=$s->fetch()?:fail('ไม่พบคำขอ',404);
         $request=request_edit_by_token($body); // Recheck after the ticket lock to prevent replay/resend races.
         request_edit_apply($ticket,$body,null,(int)$request['id']);
         $pdo->prepare("UPDATE ticket_edit_requests SET status='submitted',submitted_at=NOW() WHERE id=?")->execute([$request['id']]);

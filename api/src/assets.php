@@ -25,10 +25,14 @@ function asset_list(array $q): array
         $where[] = 'a.company = ?';
         $params[] = (string)$q['company'];
     }
+    // Two register tables on /admin/assets: legacy Inventory.xlsx codes (INV-xxx) vs everything else.
+    $group = (string)($q['code_group'] ?? '');
+    if ($group === 'inv') $where[] = "a.asset_code LIKE 'INV-%'";
+    elseif ($group === 'main') $where[] = "a.asset_code NOT LIKE 'INV-%'";
 
     $sql = "SELECT a.id, a.asset_code, a.company, a.brand_model, a.serial_no, a.hostname, a.holder_name, a.holder_nickname,
             a.department, a.location, a.status, a.registered_at, c.name AS category_name,
-            (SELECT COUNT(*) FROM tickets t WHERE t.asset_id = a.id AND t.type = 'repair' AND t.status IN ('" . implode("','", TICKET_OPEN_STATUSES) . "')) AS open_tickets
+            (SELECT COUNT(*) FROM tickets t WHERE t.asset_id = a.id AND t.type = 'repair' AND t.deleted_at IS NULL AND t.status IN ('" . implode("','", TICKET_OPEN_STATUSES) . "')) AS open_tickets
         FROM assets a LEFT JOIN asset_categories c ON c.id = a.category_id"
         . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
         . ' ORDER BY a.asset_code';
@@ -47,11 +51,11 @@ function asset_detail(int $id): array
     $stmt->execute([$id]);
     $asset = $stmt->fetch() ?: fail('ไม่พบอุปกรณ์', 404);
 
-    $stmt = db()->prepare('SELECT id, ticket_no, type, title, status, created_at, finished_at FROM tickets WHERE asset_id = ? AND type = \'repair\' ORDER BY created_at DESC LIMIT 50');
+    $stmt = db()->prepare('SELECT id, ticket_no, type, title, status, created_at, finished_at FROM tickets WHERE asset_id = ? AND type = \'repair\' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 50');
     $stmt->execute([$id]);
     $asset['tickets'] = $stmt->fetchAll();
 
-    $stmt = db()->prepare('SELECT m.*, t.ticket_no FROM maintenance_records m LEFT JOIN tickets t ON t.id = m.ticket_id
+    $stmt = db()->prepare('SELECT m.*, t.ticket_no FROM maintenance_records m LEFT JOIN tickets t ON t.id = m.ticket_id AND t.deleted_at IS NULL
         WHERE m.asset_id = ? ORDER BY m.performed_on DESC, m.id DESC');
     $stmt->execute([$id]);
     $asset['maintenance'] = $stmt->fetchAll();

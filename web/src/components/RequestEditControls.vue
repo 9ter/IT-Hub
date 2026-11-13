@@ -3,36 +3,42 @@ import { computed,ref } from 'vue'
 import { api,ApiError,type Ticket } from '@/api'
 import { fmtDateTime } from '@/format'
 import { toast } from '@/store'
-import { purchaseRequestData,requestEditChanges } from '@/requestEdits'
+import { borrowRequestData,borrowRequestErrors,purchaseItemErrors,purchaseRequestData,requestEditChanges } from '@/requestEdits'
 import PurchaseRequestFields from './PurchaseRequestFields.vue'
+import BorrowRequestFields from './BorrowRequestFields.vue'
 const props=defineProps<{ticket:Ticket;busy:boolean}>()
 const emit=defineEmits<{updated:[ticket:Ticket,preserveDraft:boolean];busy:[busy:boolean]}>()
 const mode=ref<'edit'|'return'|''>(''),saving=ref(false),error=ref(''),errors=ref<Record<string,string>>({}),reason=ref(''),version=ref('')
-const data=ref(purchaseRequestData({}))
+const data=ref(purchaseRequestData({})),borrowData=ref(borrowRequestData({}))
+const isBorrow=computed(()=>props.ticket.type==='borrow')
+/** Borrow requests are editable only until IT decides (the API then stops sending a version). */
+const editable=computed(()=>!isBorrow.value||!!props.ticket.request_edit_version)
 const blocked=computed(()=>props.busy||saving.value||['rejected','cancelled'].includes(props.ticket.status))
 const returned=computed(()=>props.ticket.request_edit_return)
 function open(next:'edit'|'return'){
-  data.value=purchaseRequestData({...props.ticket.details,description:props.ticket.description})
+  if(isBorrow.value)borrowData.value=borrowRequestData({...props.ticket.details,description:props.ticket.description})
+  else data.value=purchaseRequestData({...props.ticket.details,description:props.ticket.description})
   version.value=props.ticket.request_edit_version||'';reason.value='';error.value='';errors.value={};mode.value=next
 }
 async function submit(){
   if(blocked.value)return
-  if(mode.value==='edit'&&!data.value.items.length){errors.value={items:'กรุณาเลือกประเภทอุปกรณ์อย่างน้อย 1 รายการ'};return}
+  if(mode.value==='edit'){const invalid=isBorrow.value?borrowRequestErrors(borrowData.value):purchaseItemErrors(data.value.items,data.value.item_quantities,data.value.item_details,data.value.item_other);if(Object.keys(invalid).length){errors.value=invalid;return}}
   const id=props.ticket.id,kind=mode.value
   saving.value=true;emit('busy',true);error.value='';errors.value={}
   try{
-    const updated=await api.post<Ticket>(`/admin/tickets/${id}/${kind==='edit'?'request-edit':'return-to-requester'}`,{version:version.value,reason:reason.value,...(kind==='edit'?{request:data.value}:{})})
+    const updated=await api.post<Ticket>(`/admin/tickets/${id}/${kind==='edit'?'request-edit':'return-to-requester'}`,{version:version.value,reason:reason.value,...(kind==='edit'?{request:isBorrow.value?borrowData.value:data.value}:{})})
     if(props.ticket.id!==id)return
     emit('updated',updated,true);mode.value=''
-    if(kind==='edit')toast('แก้ไขรายละเอียดแล้ว โดยคงลายเซ็นเดิม')
+    if(kind==='edit')toast(isBorrow.value?'แก้ไขรายละเอียดคำขอเบิก–ยืมแล้ว':'แก้ไขรายละเอียดแล้ว โดยคงลายเซ็นเดิม')
     else toast(updated.request_edit_return?.mail_status==='sent'?'ส่งอีเมลให้ผู้ขอแก้ไขรายละเอียดแล้ว':updated.request_edit_return?.mail_error||'ส่งอีเมลไม่สำเร็จ',updated.request_edit_return?.mail_status==='sent'?'ok':'error')
   }catch(e){error.value=(e as Error).message;if(e instanceof ApiError)errors.value=e.errors}
   finally{saving.value=false;emit('busy',false)}
 }
 </script>
 <template>
-  <div class="mt-4 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-700">
-    <p class="text-sm text-slate-500 dark:text-slate-400">แก้ไขรายละเอียดคำขอได้โดยคงลายเซ็นเดิม ระบบเก็บประวัติก่อนและหลังแก้ไข</p>
+  <div v-if="editable||ticket.request_edit_history?.length" class="mt-4 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+    <p v-if="!isBorrow" class="text-sm text-slate-500 dark:text-slate-400">แก้ไขรายละเอียดคำขอได้โดยคงลายเซ็นเดิม ระบบเก็บประวัติก่อนและหลังแก้ไข</p>
+    <p v-else-if="editable" class="text-sm text-slate-500 dark:text-slate-400">Admin IT Hub แก้ไขรายการอุปกรณ์ จำนวน วัตถุประสงค์ และช่วงเวลาได้ก่อนอนุมัติ ระบบเก็บประวัติก่อนและหลังแก้ไข และใช้ข้อมูลล่าสุดเมื่ออนุมัติเข้าบันทึก FM-IT-008</p>
     <div v-if="returned" class="rounded-lg bg-blue-50 p-3 text-sm dark:bg-blue-950/50">
       <p class="font-medium">{{returned.status==='submitted'?'ผู้ขอแก้ไขและส่งกลับแล้ว':returned.status==='pending'?'ส่งกลับรอผู้ขอแก้ไข':'คำขอแก้ไขถูกแทนที่แล้ว'}}</p>
       <p class="mt-1 whitespace-pre-wrap break-words">เหตุผล: {{returned.reason}}</p>
@@ -40,14 +46,15 @@ async function submit(){
       <p v-if="returned.status==='pending'" class="mt-1 text-xs">ลิงก์หมดอายุ {{fmtDateTime(returned.expires_at)}} · {{returned.mail_status==='sent'?'ส่งอีเมลแล้ว':returned.mail_status==='failed'?'ส่งอีเมลไม่สำเร็จ':'กำลังส่งอีเมล'}}</p>
       <p v-if="returned.mail_error" role="alert" class="field-error">{{returned.mail_error}}</p>
     </div>
-    <div v-if="!mode" class="flex flex-wrap gap-2">
+    <div v-if="!mode&&editable" class="flex flex-wrap gap-2">
       <button type="button" class="btn-secondary" :disabled="blocked" @click="open('edit')">แก้ไขรายละเอียด</button>
-      <button type="button" class="btn-secondary" :disabled="blocked||!ticket.requester_email" @click="open('return')">{{returned?.status==='pending'?'ส่งกลับอีกครั้ง':'ส่งกลับให้ผู้ขอแก้ไข'}}</button>
+      <button v-if="!isBorrow" type="button" class="btn-secondary" :disabled="blocked||!ticket.requester_email" @click="open('return')">{{returned?.status==='pending'?'ส่งกลับอีกครั้ง':'ส่งกลับให้ผู้ขอแก้ไข'}}</button>
     </div>
-    <p v-if="!ticket.requester_email" class="text-xs text-slate-500 dark:text-slate-400">ไม่มีอีเมลผู้ขอสำหรับส่งลิงก์ Admin สามารถแก้ไขรายละเอียดให้ได้</p>
+    <p v-if="!isBorrow&&!ticket.requester_email" class="text-xs text-slate-500 dark:text-slate-400">ไม่มีอีเมลผู้ขอสำหรับส่งลิงก์ Admin สามารถแก้ไขรายละเอียดให้ได้</p>
     <form v-if="mode" class="space-y-4" @submit.prevent="submit">
       <h3 class="font-semibold">{{mode==='edit'?'แก้ไขรายละเอียดคำขอ':'ส่งกลับให้ผู้ขอแก้ไข'}}</h3>
-      <PurchaseRequestFields v-if="mode==='edit'" v-model="data" :disabled="saving||props.busy" :errors="errors" />
+      <BorrowRequestFields v-if="mode==='edit'&&isBorrow" v-model="borrowData" :disabled="saving||props.busy" :errors="errors" />
+      <PurchaseRequestFields v-else-if="mode==='edit'" v-model="data" :disabled="saving||props.busy" :errors="errors" />
       <div><label for="request_edit_reason" class="label">{{mode==='edit'?'เหตุผลการแก้ไข':'เหตุผลที่ส่งกลับ / รายละเอียดที่ต้องแก้ไข'}} <span class="text-red-500">*</span></label><textarea id="request_edit_reason" v-model="reason" class="input" maxlength="2000" rows="3" :disabled="saving" required /><p v-if="errors.reason" class="field-error">{{errors.reason}}</p></div>
       <p v-if="mode==='return'" class="text-sm text-slate-500 dark:text-slate-400">ส่งลิงก์ไปยัง {{ticket.requester_email}} เพื่อแก้ไขได้ครั้งเดียวภายใน 7 วัน โดยไม่ต้องลงนามใหม่</p>
       <p v-if="error" role="alert" class="field-error">{{error}}</p>

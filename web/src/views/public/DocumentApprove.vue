@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SignatureImage from '@/components/SignatureImage.vue'
 import { computed,ref,watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '@/api'
@@ -32,7 +33,7 @@ async function print(){await printRef.value?.prepare();window.print()}
       <div><label class="label" for="document-decision">ผลการพิจารณา</label><select id="document-decision" v-model="decision" class="input"><option value="approved">ลงนาม / รับรอง</option><option value="rejected">ไม่อนุมัติ / ไม่รับรอง</option></select></div>
       <div><label class="label" for="document-note">{{decision==='rejected'?'เหตุผลที่ไม่รับรอง *':'หมายเหตุ'}}</label><textarea id="document-note" v-model="note" class="input" rows="3" maxlength="2000" :required="decision==='rejected'" /></div>
       <div v-if="review.saved_signature_data" class="flex flex-wrap gap-3"><label class="choice"><input v-model="mode" value="saved" type="radio" />ใช้ลายเซ็นจาก E-Procurement</label><label class="choice"><input v-model="mode" value="draw" type="radio" />วาดใหม่</label></div>
-      <img v-if="mode==='saved'&&review.saved_signature_data" :src="review.saved_signature_data" alt="ลายเซ็นจาก E-Procurement" class="bg-white rounded mx-auto h-28 max-w-full object-contain" /><SignaturePad v-else v-model="signature" />
+      <SignatureImage v-if="mode==='saved'&&review.saved_signature_data" :src="review.saved_signature_data" alt="ลายเซ็นจาก E-Procurement" class="bg-white rounded mx-auto h-28 max-w-full object-contain" /><SignaturePad v-else v-model="signature" />
       <label class="flex items-start gap-2 text-sm"><input v-model="consent" type="checkbox" class="mt-1" required /><span>ข้าพเจ้า {{review.signer_name}} ได้ตรวจสอบเอกสาร {{review.document.document_no}} และยืนยันใช้ลายเซ็นนี้ในตำแหน่ง {{review.role_label}} เพื่อ{{decision==='approved'?'ลงนาม / รับรอง':'ไม่อนุมัติ / ไม่รับรอง'}}ข้อมูลในฉบับที่แสดงข้างต้น</span></label>
       <p class="text-xs text-slate-500 dark:text-slate-400">ลิงก์หมดอายุ {{fmtDateTime(review.expires_at)}} · การเปิดลิงก์ยังไม่ถือว่าลงนาม</p><p v-if="formError" role="alert" class="field-error">{{formError}}</p><button class="btn-primary w-full" :disabled="saving||!ready">{{saving?'กำลังบันทึก...':'ยืนยันการลงนาม'}}</button>
     </form>

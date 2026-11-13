@@ -10,12 +10,12 @@ function archive_status(int $id): ?array
 function archive_snapshot(int $id): array
 {
     $t=ticket_admin($id);
-    unset($t['nas_archive'],$t['client_ip'],$t['updated_at']);$t['logs']=[];
+    unset($t['nas_archive'],$t['client_ip'],$t['updated_at'],$t['purchase_default_approver_ids']);$t['logs']=[];
     $types=[];foreach(ticket_types() as $key=>$type)$types[$key]=['label'=>$type['label'],'form'=>$type['form']];
     $payload=['ticket'=>$t,'meta'=>['app_url'=>'','ticket_types'=>$types,'ticket_statuses'=>TICKET_STATUSES,'ticket_priorities'=>TICKET_PRIORITIES,
         'asset_statuses'=>ASSET_STATUSES,'service_actions'=>SERVICE_ACTIONS,'device_kinds'=>DEVICE_KINDS,'email_companies'=>EMAIL_COMPANIES,'purchase_items'=>PURCHASE_ITEMS,'categories'=>[]]];
     if($t['type']==='borrow' && !empty($t['borrow_approval']['document_id'])) {
-        $payload['document']=document_detail((int)$t['borrow_approval']['document_id']);$payload['document']['logs']=[];unset($payload['document']['updated_at']);
+        $payload['document']=document_detail((int)$t['borrow_approval']['document_id']);$payload['document']['logs']=[];unset($payload['document']['updated_at'],$payload['document']['deleted']);
         $payload['definition']=document_forms()['FM-IT-008'];
     }
     return $payload;
@@ -26,7 +26,7 @@ function archive_enqueue(int $id): ?array
 {
     $pdo=db();$own=!$pdo->inTransaction();if($own)$pdo->beginTransaction();
     try{
-        $s=$pdo->prepare('SELECT status FROM tickets WHERE id=? FOR UPDATE');$s->execute([$id]);if($s->fetchColumn()!=='done'){if($own)$pdo->commit();return null;}
+        $s=$pdo->prepare('SELECT status FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');$s->execute([$id]);if($s->fetchColumn()!=='done'){if($own)$pdo->commit();return null;}
         try{$revision=nas_read()['revision']??'';}catch(Throwable){$revision='';}
         $snapshot=json_encode(archive_snapshot($id),JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);$hash=hash('sha256',$snapshot);
         $s=$pdo->prepare('SELECT id,snapshot_hash,target_revision,status FROM ticket_archives WHERE ticket_id=? ORDER BY id DESC LIMIT 1');$s->execute([$id]);$latest=$s->fetch();
@@ -41,7 +41,7 @@ function archive_retry(int $id): array
 {
     $pdo=db();$pdo->beginTransaction();
     try{
-        $s=$pdo->prepare('SELECT status FROM tickets WHERE id=? FOR UPDATE');$s->execute([$id]);if($s->fetchColumn()!=='done')fail('ส่งเอกสารไป NAS ได้เฉพาะงานที่เสร็จสิ้นแล้ว',409);
+        $s=$pdo->prepare('SELECT status FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');$s->execute([$id]);if($s->fetchColumn()!=='done')fail('ส่งเอกสารไป NAS ได้เฉพาะงานที่เสร็จสิ้นแล้ว',409);
         $job=archive_enqueue($id);
         if($job['status']!=='sent'&&$job['status']!=='processing')$pdo->prepare("UPDATE ticket_archives SET status='pending',attempts=0,next_attempt_at=NOW(),last_error=NULL WHERE id=?")->execute([$job['id']]);
         $pdo->commit();return archive_status($id);
@@ -73,7 +73,7 @@ function archive_run_job(array $job,?callable $render=null,?callable $upload=nul
 {
     $id=(int)$job['id'];$pdo=db();
     try{
-        $s=$pdo->prepare('SELECT status,(SELECT MAX(id) FROM ticket_archives WHERE ticket_id=t.id) latest FROM tickets t WHERE id=?');$s->execute([$job['ticket_id']]);$current=$s->fetch();
+        $s=$pdo->prepare('SELECT status,(SELECT MAX(id) FROM ticket_archives WHERE ticket_id=t.id) latest FROM tickets t WHERE id=? AND deleted_at IS NULL');$s->execute([$job['ticket_id']]);$current=$s->fetch();
         if(!$current||$current['status']!=='done'||(int)$current['latest']!==$id){$pdo->prepare("UPDATE ticket_archives SET status='obsolete' WHERE id=?")->execute([$id]);return;}
         $pdo->prepare("UPDATE ticket_archives SET status='processing',attempts=attempts+1,started_at=NOW() WHERE id=?")->execute([$id]);
         $mapping=nas_read();if(!$mapping)throw new RuntimeException('ยังไม่ได้ตั้งค่า Map NAS กรุณาตั้งค่าก่อนแล้วกดส่งเอกสารอีกครั้ง');
@@ -87,7 +87,7 @@ function archive_run_job(array $job,?callable $render=null,?callable $upload=nul
             if($render)$render($payload,$file);
             else archive_process([(string)cfg('archive.node','/usr/bin/node'),__DIR__.'/../bin/archive-render.cjs'],['payload'=>$payload,'output'=>$file,
                 'runtime'=>(string)cfg('archive.runtime',archive_dir().'/node_modules/playwright'),'chromium'=>(string)cfg('archive.chromium',archive_dir().'/chromium/chrome'),
-                'dist'=>dirname(__DIR__,2).'/web/dist'],90);
+                'dist'=>dirname(__DIR__,2).'/web/dist',...company_archive_bundle()],90);
         }
         $size=filesize($file);if($size<100||$size>26214400||file_get_contents($file,false,null,0,5)!=='%PDF-')throw new RuntimeException('ไฟล์ PDF ไม่สมบูรณ์');
         @chmod($file,0660);$sha=hash_file('sha256',$file);

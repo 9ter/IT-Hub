@@ -13,7 +13,7 @@ try{
  $png=image_fixture();$actor=['id'=>1,'display_name'=>'Actual IT'];$other=['id'=>2,'display_name'=>'Assigned IT'];
  $s=$pdo->prepare("INSERT INTO admins(id,username,password_hash,display_name,signature_data) VALUES(?,?,'fixture',?,?)");$s->execute([1,'actual','Actual IT',$png]);$s->execute([2,'assigned','Assigned IT',$png]);
  $pdo->exec("INSERT INTO employees(id,full_name,email,company,can_approve) VALUES(1,'Fixture Head','head@example.com','Fixture',1),(2,'Other Approver','other@example.com','Fixture',1)");
- $create=create_ticket(['type'=>'purchase','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Department','description'=>'Fixture purchase','items'=>['notebook'],'approver_id'=>1,'requester_signature_data'=>$png],null);$id=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();$headToken=token_fixture($capture);
+ $create=create_ticket(['type'=>'purchase','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Department','description'=>'Fixture purchase','items'=>['notebook'],'item_quantities'=>['notebook'=>1],'approver_id'=>1,'requester_signature_data'=>$png],null);$id=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();$headToken=token_fixture($capture);
  $approve=['decision'=>'approved','consent'=>true,'signature_data'=>$png];
  rejects(fn()=>receipt_ticket_sign($id,['consent'=>true],$actor),422);
  rejects(fn()=>purchase_signature_request($id,['role'=>'director','approver_id'=>1],$actor),422);

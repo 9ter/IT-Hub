@@ -15,6 +15,12 @@ final class Input
         return array_key_exists($key, $this->data);
     }
 
+    /** Raw value for callers that validate nested structures themselves. */
+    public function value(string $key): mixed
+    {
+        return $this->data[$key] ?? null;
+    }
+
     public function str(string $key, int $max = 255, bool $required = false, string $label = ''): ?string
     {
         $value = $this->data[$key] ?? null;

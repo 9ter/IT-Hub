@@ -104,7 +104,7 @@ function receipt_ticket_sign(int $id,array $body,array $actor): array
     $in=new Input($body);if(!$in->bool('consent'))fail('กรุณายืนยันการลงนามผู้รับเรื่อง',422);
     $pdo=db();$pdo->beginTransaction();
     try{
-        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');$s->execute([$id]);$t=$s->fetch()?:fail('ไม่พบคำขอ',404);
+        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');$s->execute([$id]);$t=$s->fetch()?:fail('ไม่พบคำขอ',404);
         if($t['type']!=='purchase')fail('ช่องผู้รับเรื่องนี้ใช้กับใบขอซื้อ',422);
         if(in_array($t['status'],['rejected','cancelled'],true))fail('คำขอนี้ปฏิเสธหรือยกเลิกแล้ว',409);
         $head=approval_for_ticket($id);if($head && $head['status']!=='approved')fail('ต้องได้รับอนุมัติต้นสังกัดก่อนลงนามผู้รับเรื่อง',422);
@@ -125,7 +125,7 @@ function purchase_signature_request(int $id,array $body,array $actor): array
     $proc=array_key_exists('purchase_fields',$body)?purchase_fields_parse($body['purchase_fields']):null;
     $pdo=db();$pdo->beginTransaction();
     try{
-        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');$s->execute([$id]);$t=$s->fetch()?:fail('ไม่พบคำขอ',404);
+        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');$s->execute([$id]);$t=$s->fetch()?:fail('ไม่พบคำขอ',404);
         if($t['type']!=='purchase')fail('ขั้นตอนนี้ใช้กับใบขอซื้อ FM-IT-007',422);
         if(isset($body['work_revision']) && (int)$body['work_revision']!==(int)$t['completion_revision'])fail('ข้อมูลใบขอซื้อเปลี่ยนแล้ว กรุณาตรวจสถานะและโหลดข้อมูลใหม่',409);
         if(in_array($t['status'],['rejected','cancelled'],true))fail('ใบขอซื้อนี้ไม่พร้อมส่งขอลงนาม',409);

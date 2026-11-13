@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { signaturesReady } from '@/signatureTrim'
 import { computed,nextTick,onMounted,ref } from 'vue'
 import { documentStates,displayDocumentValue,type DocumentDefinition,type ITDocument } from '@/documents'
 import { fmtFormDate } from '@/format'
@@ -6,12 +7,14 @@ import DocumentFields from './DocumentFields.vue'
 import DocumentSignatures from './DocumentSignatures.vue'
 import ServiceRequestPrint from './ServiceRequestPrint.vue'
 import type { Ticket,Approval } from '@/api'
-import atsLogo from '@/assets/ats-logo.png'
+import { companyLogo, ensureCompanies } from '@/companies'
 import '@fontsource/noto-serif-thai/400.css'
 import '@fontsource/noto-serif-thai/700.css'
 const props=defineProps<{document:ITDocument;definition:DocumentDefinition;preview?:boolean;blank?:boolean;statusLabel?:string}>()
 const printStatus=computed(()=>props.statusLabel??(props.definition.record&&props.document.status==='in_progress'?'':props.document.status!=='approved'?documentStates[props.document.status]:''))
 const root=ref<HTMLElement|null>(null)
+// โลโก้หัวเอกสารตามบริษัทของเอกสาร (ข้อมูลบริษัทจากระบบจัดซื้อ)
+const logo=computed(()=>companyLogo(props.document.company))
 const servicePrint=ref<InstanceType<typeof ServiceRequestPrint>|null>(null)
 const code=computed(()=>props.document.form_code)
 // Keep the two original FM008 checkboxes; mixed requests select both.
@@ -36,16 +39,23 @@ function weekText(value:unknown,week:number){
   return [plan.match(/[1-4]/g)?.includes(String(week))?'P':'',actual.match(/[1-4]/g)?.includes(String(week))?'A':''].filter(Boolean).join('/')
 }
 const rows=computed<ITDocument['data']['rows']>(()=>props.document.data.rows.length?props.document.data.rows:Array.from({length:props.blank?(code.value.startsWith('FM-IT-007')?2:code.value==='FM-IT-008'?5:code.value==='FM-IT-002'?8:12):report.value?12:8},()=>({})))
+/** FM-IT-007: the CPU/RAM/... block prints only when the requester filled it; a blank form keeps it to write by hand. */
+const purchaseSpecKeys=['cpu','ram','storage','display','other','software']
+const hasPurchaseSpec=computed(()=>props.blank||purchaseSpecKeys.some(k=>{const v=props.document.data.fields[k];return Array.isArray(v)?v.length>0:typeof v==='string'?v.trim()!=='':v!=null}))
+/** FM-IT-007 with more than two items tightens spacing so the form, signatures and footer stay on one A4 page. */
+const densePurchase=computed(()=>!props.blank&&code.value.startsWith('FM-IT-007')&&rows.value.length>2)
 const inspectionMark=(value:unknown)=>({normal:'/',abnormal:'X',fixed:'✓'} as Record<string,string>)[String(value)]||value
 const roleSignature=(key:string)=>props.document.signatures.find(s=>s.role_key===key)
 const assistant=computed(()=>{const s=roleSignature('md');return {name:s?.signer_name||null,signature:s?.signature_data||null,signedAt:s?.signed_at||null,rejected:s?.status==='rejected',note:s?.decision_note||null}})
 const serviceTicket=computed<Ticket>(()=>{
   const d=props.document,head=roleSignature('head'),requester=roleSignature('requester'),it=roleSignature('it'),director=roleSignature('director')
   const approval=(s:typeof head,stage:'request'|'completion'):Approval|null=>s?{stage,attempt:1,work_revision:1,resolution_snapshot:f('result'),employee_id:s.employee_id||0,approver_name:s.signer_name,approver_email:s.signer_email||'',approver_company:d.company,approver_department:null,status:s.status==='approved'?'approved':s.status==='rejected'?'rejected':'pending',mail_status:'sent',mail_attempts:1,mail_sent_at:null,mail_error:null,expires_at:s.expires_at,signed_at:s.signed_at,signature_data:s.signature_data,decision_note:s.decision_note}:null
-  return {id:d.id,ticket_no:d.document_no,type:'service',title:d.title,status:d.status==='approved'?'done':'new',priority:'normal',requester_name:f('requester'),requester_dept:f('department'),created_at:d.document_date+' 00:00:00',asset_id:null,asset_code:null,asset_model:null,assigned_to:null,assigned_name:it?.signer_name||null,requester_phone:null,requester_email:null,location:null,resolution:f('result')||null,fix_method:null,outsource_vendor:null,has_photo:false,started_at:null,finished_at:null,updated_at:d.updated_at,logs:[],details:{position:f('position'),actions:d.data.fields.actions||[],device_kind:d.data.fields.device_kind||'',os_target:f('os'),other_text:f('other')},description:f('description'),requester_signature:requester?.signature_data?{requester_name:requester.signer_name,signature_data:requester.signature_data,signed_at:requester.signed_at!}:null,approval:approval(head,'request'),it_signature:it?.signature_data?{admin_id:it.admin_id||0,signer_name:it.signer_name,signature_data:it.signature_data,signed_at:it.signed_at!,work_revision:1}:null,completion_required:true,completion_revision:1,completion_approval:approval(director,'completion'),completion_approval_current:true,default_completion_approver_id:null}
+  return {id:d.id,ticket_no:d.document_no,type:'service',title:d.title,status:d.status==='approved'?'done':'new',priority:'normal',requester_name:f('requester'),requester_dept:f('department'),created_at:d.document_date+' 00:00:00',asset_id:null,asset_code:null,asset_model:null,assigned_to:null,assigned_name:it?.signer_name||null,requester_phone:null,requester_email:null,location:null,resolution:f('result')||null,fix_method:null,outsource_vendor:null,has_photo:false,started_at:null,finished_at:null,updated_at:d.updated_at,logs:[],details:{position:f('position'),actions:d.data.fields.actions||[],device_kind:d.data.fields.device_kind||'',os_target:f('os'),other_text:f('other'),requester_company:{id:0,code:'',name:d.company}},description:f('description'),requester_signature:requester?.signature_data?{requester_name:requester.signer_name,signature_data:requester.signature_data,signed_at:requester.signed_at!}:null,approval:approval(head,'request'),it_signature:it?.signature_data?{admin_id:it.admin_id||0,signer_name:it.signer_name,signature_data:it.signature_data,signed_at:it.signed_at!,work_revision:1}:null,completion_required:true,completion_revision:1,completion_approval:approval(director,'completion'),completion_approval_current:true,default_completion_approver_id:null}
 })
 async function prepare(){
+  await ensureCompanies()
   if(code.value==='FM-IT-010'){await servicePrint.value?.prepare();return}
+  await signaturesReady()
   await Promise.all([document.fonts.load('9pt "Noto Serif Thai"','แบบฟอร์มเอกสารฝ่ายเทคโนโลยีสารสนเทศ ABC 0123456789'),document.fonts.load('700 11pt "Noto Serif Thai"','แบบฟอร์มเอกสารฝ่ายเทคโนโลยีสารสนเทศ ABC')])
   await nextTick();await Promise.all(Array.from(root.value?.querySelectorAll('img')||[]).map(img=>img.decode().catch(()=>{})))
 }
@@ -54,8 +64,8 @@ onMounted(prepare);defineExpose({prepare})
 <template>
   <div ref="root" :class="['document-print',{preview,service:code==='FM-IT-010'},definition.orientation]">
     <ServiceRequestPrint v-if="code==='FM-IT-010'" ref="servicePrint" :ticket="serviceTicket" :assistant-signature="assistant" :document-title="document.title!==definition.title?document.title:undefined" :status-label="!blank&&document.status!=='approved'?documentStates[document.status]:undefined" />
-    <article v-else :class="['doc-sheet',code==='FM-IT-003'||code==='FM-IT-007.1'?'compact':'']" :data-form-code="code">
-      <header class="doc-header"><img :src="atsLogo" alt="Atthasan" /><div><h1>{{definition.title}}</h1><p v-if="code==='FM-IT-011'">แบบฟอร์มบันทึกการเข้าปฏิบัติงานด้าน IT (สำหรับบุคคลภายนอก)<br />(IT Visitor &amp; Contractor Log Form)</p><p>{{document.company}}</p></div></header>
+    <article v-else :class="['doc-sheet',code==='FM-IT-003'||code==='FM-IT-007.1'?'compact':'',densePurchase?'dense':'']" :data-form-code="code">
+      <header class="doc-header"><img v-if="logo" :src="logo" :alt="document.company" /><span v-else class="logo-spacer" /><div><h1>{{definition.title}}</h1><p v-if="code==='FM-IT-011'">แบบฟอร์มบันทึกการเข้าปฏิบัติงานด้าน IT (สำหรับบุคคลภายนอก)<br />(IT Visitor &amp; Contractor Log Form)</p><p>{{document.company}}</p></div></header>
       <div class="doc-meta"><span>เลขที่ {{blank?'........................................':document.document_no}}</span><span>วันที่ {{blank?'........../........../..........':fmtFormDate(document.document_date)}}</span><span v-if="!blank&&printStatus" class="draft-mark">{{printStatus}}</span></div>
       <p v-if="document.title!==definition.title" class="doc-subject">เรื่อง: {{document.title}}</p>
       <div class="doc-body">
@@ -83,8 +93,8 @@ onMounted(prepare);defineExpose({prepare})
         <template v-else-if="code.startsWith('FM-IT-007')">
           <DocumentFields :document="document" :definition="definition" :keys="['requester','position','department','urgency','need_by','purpose']" :columns="2" />
           <h2>ประเภทอุปกรณ์ที่ต้องการ / รายละเอียดสเปกพื้นฐาน (Specification Details)</h2>
-          <table class="doc-table"><thead><tr><th style="width:10mm">ลำดับ</th><th>อุปกรณ์</th><th>รายละเอียดสเปก</th><th style="width:15mm">จำนวน</th></tr></thead><tbody><tr v-for="(row,i) in rows" :key="i"><td>{{i+1}}</td><td>{{cell(row,'item')}}</td><td>{{cell(row,'spec')}}</td><td>{{cell(row,'quantity')}}</td></tr></tbody></table>
-          <DocumentFields :document="document" :definition="definition" :keys="['cpu','ram','storage','display','other','software']" :columns="2" />
+          <table class="doc-table"><thead><tr><th style="width:10mm">ลำดับ</th><th>อุปกรณ์</th><th>รายละเอียดสเปก</th><th style="width:15mm">จำนวน</th></tr></thead><tbody><tr v-for="(row,i) in rows" :key="i"><td>{{i+1}}</td><td>{{cell(row,'item')}}</td><td>{{cell(row,'spec')}}</td><td class="center">{{cell(row,'quantity')}}</td></tr></tbody></table>
+          <DocumentFields v-if="hasPurchaseSpec" :document="document" :definition="definition" :keys="purchaseSpecKeys" :columns="2" />
           <DocumentSignatures :document="document" :definition="definition" :keys="requestSigns" />
           <h2>ฝ่ายเทคโนโลยีสารสนเทศได้ตรวจสอบแล้ว จึงดำเนินการจัดซื้อดังนี้</h2>
           <DocumentFields :document="document" :definition="definition" :keys="completionKeys" :columns="2" />
@@ -130,8 +140,15 @@ onMounted(prepare);defineExpose({prepare})
 .document-print.preview.service :deep(.service-request-print){display:block;background:#fff;width:186.6mm;margin:auto}
 .compact :deep(.paragraph-field){min-height:8mm}
 .compact :deep(.doc-signature-group){margin:4mm 0}
+.dense :deep(.paragraph-field){min-height:6mm;margin-top:.5mm}
+.dense :deep(.doc-fields){margin:1mm 0}
+.dense :deep(.doc-field){min-height:5mm;padding:.6mm 2mm}
+.dense :deep(.doc-signature-group){margin:2.5mm 0}
+.dense .doc-body h2{margin:2mm 0 .5mm;padding:.8mm 2mm}
+.dense .doc-table{margin:1mm 0}.dense .doc-table th,.dense .doc-table td{padding:.6mm 1mm}.dense .doc-table td{height:4.8mm}
+.dense footer{margin-top:2mm}
 .preview .doc-sheet{padding:10mm;width:206mm}.preview.landscape .doc-sheet{width:296mm}
-.doc-header{display:flex;align-items:center;gap:5mm;margin-bottom:3mm;break-inside:avoid}.doc-header img{width:24mm;height:18mm;object-fit:contain}.doc-header>div{flex:1;text-align:center}.doc-header h1{font-size:12pt;font-weight:700;line-height:1.5;margin:0}.doc-header p{font-size:8.5pt;margin:1mm 0}
+.doc-header{display:flex;align-items:center;gap:5mm;margin-bottom:3mm;break-inside:avoid}.doc-header img,.doc-header .logo-spacer{width:24mm;height:18mm;object-fit:contain;flex:none}.doc-header>div{flex:1;text-align:center}.doc-header h1{font-size:12pt;font-weight:700;line-height:1.5;margin:0}.doc-header p{font-size:8.5pt;margin:1mm 0}
 .doc-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1mm 3mm;font-size:8pt;border-bottom:.3mm solid #000;padding-bottom:2mm;margin-bottom:3mm}.draft-mark{font-weight:bold}
 .doc-subject{margin:2mm 0;overflow-wrap:anywhere;white-space:pre-wrap}
 .doc-body{min-height:218mm}.landscape .doc-body{min-height:133mm}

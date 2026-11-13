@@ -3,23 +3,28 @@ declare(strict_types=1);
 
 const DOCUMENT_STATUSES = ['draft'=>'ฉบับร่าง','request_review'=>'รอลงนามคำขอ','in_progress'=>'ดำเนินการ / บันทึกผล','completion_review'=>'รอลงนามรับรอง','approved'=>'รับรองครบแล้ว','rejected'=>'ไม่อนุมัติ / ไม่รับรอง','cancelled'=>'ยกเลิก'];
 
-function document_get(int $id, bool $lock=false): array
+/** Deleted documents are hidden from every write path; only the detail view (and NAS archive snapshots) may read them. */
+function document_get(int $id, bool $lock=false, bool $allowDeleted=false): array
 {
-    $s=db()->prepare('SELECT * FROM it_documents WHERE id=?'.($lock?' FOR UPDATE':''));$s->execute([$id]);
+    $s=db()->prepare('SELECT d.*,del.display_name deleted_by_name FROM it_documents d LEFT JOIN admins del ON del.id=d.deleted_by WHERE d.id=?'.($lock?' FOR UPDATE':''));$s->execute([$id]);
     $d=$s->fetch() ?: fail('ไม่พบเอกสาร',404);
+    if ($d['deleted_at']!==null && !$allowDeleted) fail('ไม่พบเอกสาร (ถูกลบแล้ว)',404);
+    // Keep the payload shape of live documents unchanged: archive_snapshot hashes it.
+    if ($d['deleted_at']!==null) $d['deleted']=['at'=>$d['deleted_at'],'by_name'=>$d['deleted_by_name'],'reason'=>$d['delete_reason']];
+    unset($d['deleted_at'],$d['deleted_by'],$d['delete_reason'],$d['deleted_by_name']);
     $d['data']=json_decode($d['data'],true,512,JSON_THROW_ON_ERROR);
     return $d;
 }
 
 function document_detail(int $id): array
 {
-    $d=document_get($id);
+    $d=document_get($id,false,true);
     $s=db()->prepare('SELECT id,role_key,role_label,phase,sequence_no,employee_id,admin_id,signer_name,signer_email,status,expires_at,sent_at,mail_status,mail_error,signature_data,decision_note,signed_at FROM it_document_signatures WHERE document_id=? ORDER BY sequence_no');
     $s->execute([$id]);$d['signatures']=$s->fetchAll();
     $s=db()->prepare('SELECT l.note,l.created_at,a.display_name admin_name FROM it_document_logs l LEFT JOIN admins a ON a.id=l.admin_id WHERE document_id=? ORDER BY l.id');
     $s->execute([$id]);$d['logs']=$s->fetchAll();
     if ($d['form_code']==='FM-IT-008') {
-        $s=db()->prepare("SELECT b.ticket_id,t.ticket_no,b.admin_name,b.decided_at FROM ticket_borrow_decisions b JOIN tickets t ON t.id=b.ticket_id WHERE b.document_id=? AND b.decision='approved'");
+        $s=db()->prepare("SELECT b.ticket_id,t.ticket_no,b.admin_name,b.decided_at FROM ticket_borrow_decisions b JOIN tickets t ON t.id=b.ticket_id AND t.deleted_at IS NULL WHERE b.document_id=? AND b.decision='approved'");
         $s->execute([$id]);$d['borrow_source']=$s->fetch() ?: null;
     }
     return $d;
@@ -27,10 +32,12 @@ function document_detail(int $id): array
 
 function document_list(array $q): array
 {
-    $where=[];$args=[];
-    foreach(['form_code','status'] as $key) if (!empty($q[$key])) {$where[]="$key=?";$args[]=(string)$q[$key];}
-    if (trim((string)($q['q']??''))!=='') {$where[]="(document_no LIKE ? OR title LIKE ? OR company LIKE ? OR (form_code='FM-IT-008' AND data LIKE ?))";array_push($args,...array_fill(0,4,'%'.trim($q['q']).'%'));}
-    $result=paginate("SELECT id,document_no,form_code,title,document_date,company,status,version,source_note,updated_at,CASE WHEN form_code='FM-IT-008' THEN data ELSE NULL END record_data FROM it_documents".($where?' WHERE '.implode(' AND ',$where):'').' ORDER BY id DESC',$args,(int)($q['page']??1),24);
+    $deleted=($q['status']??'')==='deleted';
+    $where=[$deleted?'d.deleted_at IS NOT NULL':'d.deleted_at IS NULL'];$args=[];
+    if (!empty($q['form_code'])) {$where[]='d.form_code=?';$args[]=(string)$q['form_code'];}
+    if (!$deleted && !empty($q['status'])) {$where[]='d.status=?';$args[]=(string)$q['status'];}
+    if (trim((string)($q['q']??''))!=='') {$where[]="(d.document_no LIKE ? OR d.title LIKE ? OR d.company LIKE ? OR (d.form_code='FM-IT-008' AND d.data LIKE ?))";array_push($args,...array_fill(0,4,'%'.trim($q['q']).'%'));}
+    $result=paginate("SELECT d.id,d.document_no,d.form_code,d.title,d.document_date,d.company,d.status,d.version,d.source_note,d.updated_at,d.deleted_at,d.delete_reason,del.display_name deleted_by_name,CASE WHEN d.form_code='FM-IT-008' THEN d.data ELSE NULL END record_data FROM it_documents d LEFT JOIN admins del ON del.id=d.deleted_by WHERE ".implode(' AND ',$where).' ORDER BY d.id DESC',$args,(int)($q['page']??1),24);
     foreach($result['data'] as &$d) {
         if ($d['record_data']!==null) {
             $rows=json_decode($d['record_data'],true,512,JSON_THROW_ON_ERROR)['rows']??[];
@@ -124,7 +131,8 @@ function document_hash(array $d,string $phase): string
 
 function document_save(?int $id,array $body,array $actor,?string $sourceKey=null): array
 {
-    $pdo=db();$pdo->beginTransaction();
+    // Joins an outer transaction (Excel import creates several drafts atomically).
+    $pdo=db();$own=!$pdo->inTransaction();if($own)$pdo->beginTransaction();
     try {
         $old=$id!==null?document_get($id,true):null;
         if ($old && !in_array($old['status'],['draft','in_progress'],true)) fail('เอกสารนี้ล็อกแล้ว หากต้องแก้ไขให้สร้างฉบับใหม่',409);
@@ -153,8 +161,8 @@ function document_save(?int $id,array $body,array $actor,?string $sourceKey=null
         }
         if ($record) $pdo->prepare("UPDATE it_documents SET status='in_progress' WHERE id=?")->execute([$id]);
         if($record){$s=$pdo->prepare('SELECT ticket_id FROM ticket_borrow_decisions WHERE document_id=?');$s->execute([$id]);$sourceId=$s->fetchColumn();if($sourceId)archive_enqueue((int)$sourceId);}
-        $pdo->commit();return document_detail($id);
-    } catch(Throwable $e) {$pdo->rollBack();throw $e;}
+        if($own)$pdo->commit();return document_detail($id);
+    } catch(Throwable $e) {if($own&&$pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
 
 function document_resolve_signer(array $role,array $choice): array
@@ -325,6 +333,40 @@ function document_cancel(int $id,array $actor): array
     return document_detail($id);
 }
 
+/**
+ * Soft delete, FM-IT-008 only and only after the record is cancelled (cancelling is the irreversible step the user takes
+ * on purpose). Rows, logs and the ticket_borrow_decisions reference stay, so the record can be restored.
+ */
+function document_delete(int $id,array $body,array $actor): array
+{
+    $in=new Input($body);
+    $reason=$in->str('reason',255,true,'เหตุผลที่ลบ');
+    $in->check();
+    $pdo=db();$pdo->beginTransaction();
+    try {
+        $d=document_get($id,true);
+        if ($d['form_code']!=='FM-IT-008') fail('ลบได้เฉพาะบันทึกเบิก–ยืม FM-IT-008',409);
+        if ($d['status']!=='cancelled') fail("บันทึก {$d['document_no']} ยังใช้งานอยู่ กรุณาเปิดบันทึกแล้วกดยกเลิกก่อน จึงลบได้",409,['document_id'=>(string)$id]);
+        $pdo->prepare('UPDATE it_documents SET deleted_at=NOW(),deleted_by=?,delete_reason=? WHERE id=?')->execute([$actor['id'],$reason,$id]);
+        document_log($id,'ลบบันทึก: '.$reason,(int)$actor['id']);
+        $pdo->commit();
+    } catch(Throwable $e) {$pdo->rollBack();throw $e;}
+    return ['deleted'=>true];
+}
+
+function document_restore(int $id,array $actor): array
+{
+    $pdo=db();$pdo->beginTransaction();
+    try {
+        $s=$pdo->prepare('SELECT 1 FROM it_documents WHERE id=? AND deleted_at IS NOT NULL FOR UPDATE');$s->execute([$id]);
+        $s->fetchColumn() ?: fail('ไม่พบบันทึกที่ลบไว้',404);
+        $pdo->prepare('UPDATE it_documents SET deleted_at=NULL,deleted_by=NULL,delete_reason=NULL WHERE id=?')->execute([$id]);
+        document_log($id,'กู้คืนบันทึกที่ลบ',(int)$actor['id']);
+        $pdo->commit();
+    } catch(Throwable $e) {$pdo->rollBack();throw $e;}
+    return ['restored'=>true];
+}
+
 function document_copy(int $id,array $actor): array
 {
     $old=document_get($id);
@@ -341,7 +383,9 @@ function document_prefill(array $q): array
     if (!empty($def['record'])) fail('ระบบสร้างบันทึกเบิก–ยืมจากคำขอที่ Admin IT Hub อนุมัติแล้ว กรุณาเปิดบันทึกจากใบคำขอ',409);
     $fields=[];$rows=[];$note='';
     if ($code==='FM-IT-001') {
-        $assets=asset_list(['all'=>1,'company'=>$q['company']??''])['data'];
+        // Same filters as the register page, so each table there can print its own FM-IT-001.
+        $filters=array_intersect_key($q,array_flip(['q','category_id','status','company','code_group']));
+        $assets=asset_list(['all'=>1]+$filters)['data'];
         foreach($assets as $a) $rows[]=['asset_code'=>$a['asset_code'],'holder'=>$a['holder_name'],'model'=>$a['brand_model'],'serial'=>$a['serial_no'],'department'=>$a['department'],'registered'=>$a['registered_at'],'notes'=>$a['holder_nickname'],'type'=>$a['category_name']];
         $note='สำเนาทะเบียนอุปกรณ์จาก IT Hub ณ '.now().' ไม่เปลี่ยนข้อมูลทะเบียนต้นทาง';
     }
@@ -357,11 +401,13 @@ function document_prefill(array $q): array
         if ($t['type']==='repair') $fields += ['equipment'=>$v['equipment']?:$t['asset_model'],'asset_code'=>$t['asset_code'],'location'=>$t['location'],'found_at'=>$v['found_at']??null,'job_type'=>$v['job_type']??'repair','fix_method'=>$t['fix_method'],'vendor'=>$t['outsource_vendor'],'started_at'=>$t['started_at'],'finished_at'=>$t['finished_at']];
         if ($t['type']==='email') $fields += ['name_th'=>$v['name_th'],'name_en'=>$v['name_en'],'email_company'=>$v['company'],'desired_email'=>$v['desired_email']];
         if ($t['type']==='borrow') {$fields += ['device_kind'=>$v['device_kind'],'start_date'=>$v['start_date'],'end_date'=>$v['end_date']];$rows[]=['department'=>$t['requester_dept'],'user'=>$t['requester_name'],'purpose'=>$t['description'],'item'=>$v['item'],'quantity'=>(string)$v['quantity'],'date'=>$v['start_date']];}
-        if ($t['type']==='purchase') {$fields += ['urgency'=>$v['urgent']?'urgent':'normal','need_by'=>$v['need_by'],'cpu'=>$v['spec_cpu'],'ram'=>$v['spec_ram'],'storage'=>$v['spec_storage'],'display'=>$v['spec_display'],'other'=>$v['spec_other']];foreach($v['items'] as $item) $rows[]=['item'=>$item,'quantity'=>'1'];}
+        if ($t['type']==='purchase') {$fields += ['urgency'=>$v['urgent']?'urgent':'normal','need_by'=>$v['need_by'],'cpu'=>$v['spec_cpu'],'ram'=>$v['spec_ram'],'storage'=>$v['spec_storage'],'display'=>$v['spec_display'],'other'=>$v['spec_other']];foreach($v['items'] as $item) $rows[]=['item'=>$item,'spec'=>($item==='other'&&!empty($v['item_other'])?implode(' — ',array_filter([$v['item_other'],$v['item_details'][$item]??null])):($v['item_details'][$item]??null)),'quantity'=>(string)($v['item_quantities'][$item]??1)];}
         if ($t['type']==='service') $fields += ['device_kind'=>$v['device_kind'],'actions'=>$v['actions'],'os'=>$v['os_target'],'other'=>$v['other_text']];
         $note='สำเนาจากใบงาน '.$t['ticket_no'].(!empty($def['record'])?' — กรุณาตรวจทานข้อมูลก่อนบันทึกเบิก–คืน':' — ต้องตรวจทานและขอลงนามใหม่ ไม่คัดลอกลายเซ็นจากใบงานเดิม');
     }
-    return ['data'=>document_data($def,['fields'=>$fields,'rows'=>$rows]),'source_note'=>$note];
+    $out=['data'=>document_data($def,['fields'=>$fields,'rows'=>$rows]),'source_note'=>$note];
+    if (isset($t) && !empty($t['details']['requester_company']['name'])) $out['company']=$t['details']['requester_company']['name'];
+    return $out;
 }
 
 function document_template(string $code): never

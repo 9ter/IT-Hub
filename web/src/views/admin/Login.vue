@@ -33,7 +33,7 @@ async function submit() {
     <ThemeToggle class="absolute top-4 right-4" />
     <form class="card w-full max-w-sm p-7" @submit.prevent="submit">
       <div class="text-center">
-        <h1><img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="mx-auto h-auto w-40 rounded bg-white object-contain" /></h1>
+        <h1><img :src="itHubLogo" alt="IT Hub" width="1721" height="914" class="mx-auto h-auto w-40 object-contain" /></h1>
         <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">สำหรับเจ้าหน้าที่ IT</p>
       </div>
       <div class="mt-6 space-y-4">

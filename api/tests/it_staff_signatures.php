@@ -27,7 +27,7 @@ $profile=array_values(array_filter($list,fn($a)=>$a['id']===1))[0];
 check($profile['signature_data']===$sig && $profile['signature_updated_at']!==null,'Profile signature and server time saved');
 check(!isset($profile['password_hash']),'Admin list never includes password hash');
 admin_signature_save(2,['signature_data'=>$newSig]);
-$body=['type'=>'repair','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Department','equipment'=>'Fixture Device','description'=>'Fixture repair'];
+$body=['type'=>'repair','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Department','equipment'=>'Fixture Device','description'=>'Fixture repair','requester_signature_data'=>$sig];
 $create=create_ticket($body,null);$id=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();
 rejects(fn()=>it_ticket_sign($id,$one),422);
 update_ticket($id,['resolution'=>'Fixture work result'],$one);

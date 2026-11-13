@@ -26,6 +26,8 @@ export interface ITDocument {
   signatures: DocumentSignature[]; logs: {note:string;created_at:string;admin_name:string|null}[]
   record_summary?: {outstanding:number;returned:number}
   borrow_source?: {ticket_id:number;ticket_no:string;admin_name:string;decided_at:string}|null
+  deleted?: {at:string;by_name:string|null;reason:string|null}
+  deleted_at?: string|null; delete_reason?: string|null; deleted_by_name?: string|null
 }
 export function documentStateLabel(doc: ITDocument): string {
   return doc.form_code==='FM-IT-008'&&doc.status==='in_progress'?'บันทึกแล้ว':documentStates[doc.status]||doc.status

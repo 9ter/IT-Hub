@@ -1,10 +1,16 @@
 import type { Ticket } from './api'
 import type { DocumentSignature, ITDocument } from './documents'
+import { DEFAULT_COMPANY_NAME, ticketCompany } from './companies'
+import { purchaseItemName } from './requestEdits'
 
 /** A print-only view of a ticket; no document record or substitute signature is created. */
 export function purchasePrintDocument(ticket:Ticket):ITDocument {
   const d=ticket.details
   const text=(key:string)=>typeof d[key]==='string'?d[key] as string:null
+  const quantities=d.item_quantities&&typeof d.item_quantities==='object'&&!Array.isArray(d.item_quantities)?d.item_quantities as Record<string,unknown>:{}
+  const itemDetails=d.item_details&&typeof d.item_details==='object'&&!Array.isArray(d.item_details)?d.item_details as Record<string,unknown>:{}
+  const spec=(item:string)=>typeof itemDetails[item]==='string'&&itemDetails[item]?itemDetails[item] as string:null
+  const quantity=(item:string)=>typeof quantities[item]==='number'?String(quantities[item]):null
   const signatures:DocumentSignature[]=[]
   const add=(role:string,name:string|null|undefined,image:string|null|undefined,date:string|null|undefined,status:string,person:{employee_id?:number|null;admin_id?:number|null}={})=>{
     if(!name&&!image)return
@@ -19,7 +25,8 @@ export function purchasePrintDocument(ticket:Ticket):ITDocument {
     if(approval?.current){add(role,approval.approver_name,approval.signature_data,approval.signed_at,approval.status,{employee_id:approval.employee_id});signatures[signatures.length-1]!.decision_note=approval.decision_note}
   }
   return {
-    id:ticket.id,document_no:ticket.ticket_no,form_code:'FM-IT-007',title:'ใบขอซื้อครุภัณฑ์คอมพิวเตอร์',document_date:ticket.created_at.slice(0,10),company:'บริษัท อัตถสาร จำกัด',status:'draft',version:1,source_note:null,updated_at:ticket.updated_at,logs:[],signatures,
-    data:{fields:{requester:ticket.requester_name,department:ticket.requester_dept,position:text('position'),urgency:d.urgent?'urgent':'normal',need_by:text('need_by'),purpose:ticket.description,cpu:text('spec_cpu'),ram:text('spec_ram'),storage:text('spec_storage'),display:text('spec_display'),other:text('spec_other'),result:ticket.resolution,...ticket.purchase_fields},rows:(Array.isArray(d.items)?d.items:[]).filter((item):item is string=>typeof item==='string').map(item=>({item,quantity:null,spec:null})),signers:{}},
+    id:ticket.id,document_no:ticket.ticket_no,form_code:'FM-IT-007',title:'ใบขอซื้อครุภัณฑ์คอมพิวเตอร์',document_date:ticket.created_at.slice(0,10),company:ticketCompany(d)?.name??DEFAULT_COMPANY_NAME,status:'draft',version:1,source_note:null,updated_at:ticket.updated_at,logs:[],signatures,
+    data:{fields:{requester:ticket.requester_name,department:ticket.requester_dept,position:text('position'),urgency:d.urgent?'urgent':'normal',need_by:text('need_by'),purpose:ticket.description,cpu:text('spec_cpu'),ram:text('spec_ram'),storage:text('spec_storage'),display:text('spec_display'),other:text('spec_other'),result:ticket.resolution,...ticket.purchase_fields},rows:(Array.isArray(d.items)?d.items:[]).filter((item):item is string=>typeof item==='string')
+      .map(item=>({item:item==='other'?purchaseItemName(item,d.item_other):item,quantity:quantity(item),spec:spec(item)})),signers:{}},
   }
 }

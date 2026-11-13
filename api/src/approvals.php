@@ -9,8 +9,9 @@ function ticket_approval_role(string $type): string
 function ticket_approval_summary(array $ticket): string
 {
     $d=json_decode($ticket['details'] ?: '{}',true);
+    if ($ticket['type']==='repair') return (string)($ticket['title'] ?? '');
     if ($ticket['type']!=='purchase') return implode(', ',array_map(fn($k)=>SERVICE_ACTIONS[$k]??$k,$d['actions']??[]));
-    $lines=[implode(', ',array_map(fn($k)=>PURCHASE_ITEMS[$k]??$k,$d['items']??[])),
+    $lines=[purchase_items_text($d),
         'ความต้องการ: '.(!empty($d['urgent'])?'ด่วน':'ไม่ด่วน')];
     foreach(['need_by'=>'ต้องการภายในวันที่','position'=>'ตำแหน่งผู้ขอ','spec_cpu'=>'CPU','spec_ram'=>'RAM','spec_storage'=>'SSD/HDD','spec_display'=>'ขนาดจอ','spec_other'=>'สเปกอื่นๆ'] as $key=>$label) {
         if (!empty($d[$key])) $lines[]=$label.': '.$d[$key];
@@ -68,16 +69,17 @@ function approval_send(int $ticketId, bool $resend = false, ?int $employeeId = n
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $s = $pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');
+        $s = $pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');
         $s->execute([$ticketId]);
         $ticket = $s->fetch() ?: fail('ไม่พบคำขอ', 404);
         $s = $pdo->prepare('SELECT * FROM ticket_approvals WHERE ticket_id=? AND stage=? ORDER BY attempt DESC LIMIT 1 FOR UPDATE');
         $s->execute([$ticketId,$stage]);
         $a = $s->fetch() ?: fail('คำขอนี้ไม่มีขั้นตอนอนุมัติ', 404);
         $purchaseExtra=$ticket['type']==='purchase'&&purchase_stage($stage);
-        if ($a['status'] !== 'pending' || (in_array($ticket['status'], TICKET_CLOSED_STATUSES, true)&&!($purchaseExtra&&$ticket['status']==='done'))) fail('คำขอนี้ไม่อยู่ระหว่างรออนุมัติ', 409);
+        $repairSignoff=$stage==='completion'&&completion_optional($ticket);
+        if ($a['status'] !== 'pending' || (in_array($ticket['status'], TICKET_CLOSED_STATUSES, true)&&!(($purchaseExtra||$repairSignoff)&&$ticket['status']==='done'))) fail('คำขอนี้ไม่อยู่ระหว่างรออนุมัติ', 409);
         if($purchaseExtra)purchase_approval_check($a,$ticket);
-        if ($stage === 'completion' && (!completion_matches($a,$ticket) || (approval_for_ticket($ticketId)['status'] ?? '') !== 'approved')) {
+        if ($stage === 'completion' && (!completion_matches($a,$ticket) || (!$repairSignoff && (approval_for_ticket($ticketId)['status'] ?? '') !== 'approved'))) {
             fail('ผลการดำเนินการเปลี่ยนแล้ว กรุณาส่งขอลายเซ็น ผอ./ผจก. ใหม่',409);
         }
         if ($resend && $a['expires_at'] && strtotime($a['expires_at']) - 7*86400 > time()-60) fail('กรุณารอ 1 นาทีก่อนส่งอีกครั้ง', 429);
@@ -109,10 +111,11 @@ function approval_send(int $ticketId, bool $resend = false, ?int $employeeId = n
             $mail = approval_mailer();
             $mail->addAddress($a['approver_email'], $a['approver_name']);
             $label = $purchaseExtra?purchase_stage_label($stage):($stage === 'completion' ? 'ผอ./ผจก. ฝ่ายสนับสนุนและติดตั้ง' : ticket_approval_role($ticket['type']));
-            $mail->Subject = '[IT Hub] ' . ($stage === 'completion' ? 'ขอลงนามรับรองผลก่อนปิดงาน ' : 'ขอลงนามอนุมัติ ') . $ticket['ticket_no'];
-            $form = $ticket['type']==='purchase'?'FM-IT-007 Rev.03':'FM-IT-010 Rev.02';
+            $mail->Subject = '[IT Hub] ' . ($repairSignoff ? 'ขอลงนามรับรองผลงานซ่อม ' : ($stage === 'completion' ? 'ขอลงนามรับรองผลก่อนปิดงาน ' : 'ขอลงนามอนุมัติ ')) . $ticket['ticket_no'];
+            $form = $ticket['type']==='purchase'?'FM-IT-007 Rev.03':($ticket['type']==='repair'?'FM-IT-003 Rev.03':'FM-IT-010 Rev.02');
             $summary = ticket_approval_summary($ticket);
-            $work = $stage === 'completion' ? "\n\nผลการดำเนินการที่ขอรับรองก่อนปิดงาน:\n{$a['resolution_snapshot']}" : '';
+            $work = $repairSignoff ? "\n\nรายละเอียดการแก้ปัญหาที่ขอรับรอง:\n{$a['resolution_snapshot']}\n\nการลงนามแยกจากสถานะงาน IT และลงนามได้หลังปิดงาน"
+                : ($stage === 'completion' ? "\n\nผลการดำเนินการที่ขอรับรองก่อนปิดงาน:\n{$a['resolution_snapshot']}" : '');
             if($purchaseExtra){
                 $snapshot=json_decode($a['resolution_snapshot'],true);$lines=[];
                 foreach(['vendor'=>'บริษัท / ร้าน','vendor_phone'=>'โทรศัพท์ผู้ขาย','quotation'=>'ใบเสนอราคาเลขที่','quotation_date'=>'วันที่ใบเสนอราคา','amount'=>'รวมเป็นเงิน (บาท)','vat'=>'VAT'] as $key=>$caption){$v=$snapshot['procurement'][$key]??null;if($v!==null)$lines[]=$caption.': '.($key==='vat'?($v==='included'?'รวม VAT':'ไม่รวม VAT'):$v);}
@@ -141,18 +144,19 @@ function approval_by_token(string $token): array
     if (!preg_match('/^[a-f0-9]{64}$/D', $token)) fail('ลิงก์ไม่ถูกต้องหรือหมดอายุ', 404);
     $s = db()->prepare('SELECT a.*,t.ticket_no,t.type,t.title,t.description,t.details,t.requester_name,t.requester_dept,t.status ticket_status,
         t.created_at ticket_created_at,t.completion_revision,t.resolution,ast.asset_code,ast.brand_model asset_model
-        FROM ticket_approvals a JOIN tickets t ON t.id=a.ticket_id LEFT JOIN assets ast ON ast.id=t.asset_id AND t.type=\'repair\' WHERE a.token_hash=?');
+        FROM ticket_approvals a JOIN tickets t ON t.id=a.ticket_id LEFT JOIN assets ast ON ast.id=t.asset_id AND t.type=\'repair\' WHERE a.token_hash=? AND t.deleted_at IS NULL');
     $s->execute([hash('sha256', $token)]);
     $a = $s->fetch() ?: fail('ลิงก์ไม่ถูกต้องหรือหมดอายุ', 404);
     if ($a['status'] !== 'pending') fail('คำขอนี้ลงนามแล้ว ไม่สามารถใช้ลิงก์ซ้ำได้', 409);
     if (!$a['expires_at'] || strtotime($a['expires_at']) < time()) fail('ลิงก์หมดอายุ กรุณาติดต่อ IT เพื่อส่งอีเมลใหม่', 410);
     $purchaseExtra=$a['type']==='purchase'&&purchase_stage($a['stage']);
-    if (in_array($a['ticket_status'], TICKET_CLOSED_STATUSES, true)&&!($purchaseExtra&&$a['ticket_status']==='done')) fail('คำขอนี้ปิดหรือยกเลิกแล้ว', 409);
+    $repairSignoff=$a['stage']==='completion'&&completion_optional($a);
+    if (in_array($a['ticket_status'], TICKET_CLOSED_STATUSES, true)&&!(($purchaseExtra||$repairSignoff)&&$a['ticket_status']==='done')) fail('คำขอนี้ปิดหรือยกเลิกแล้ว', 409);
     if($purchaseExtra)purchase_approval_check($a,$a);
     if ($a['stage'] === 'completion') {
         $latest = approval_for_ticket((int)$a['ticket_id'],'completion');
         if (!$latest || (int)$latest['id'] !== (int)$a['id'] || !completion_matches($a,$a)
-            || (approval_for_ticket((int)$a['ticket_id'])['status'] ?? '') !== 'approved') {
+            || (!$repairSignoff && (approval_for_ticket((int)$a['ticket_id'])['status'] ?? '') !== 'approved')) {
             fail('คำขอรับรองผลนี้ถูกแทนที่หรือผลการดำเนินการเปลี่ยนแล้ว กรุณาให้ IT ส่งลิงก์ใหม่',409);
         }
     }
@@ -192,7 +196,7 @@ function approval_decide(array $body, ?PDO $signatureSource = null): array
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $s = $pdo->prepare('SELECT status FROM tickets WHERE id=? FOR UPDATE');
+        $s = $pdo->prepare('SELECT status FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');
         $s->execute([$a['ticket_id']]);
         $s = $pdo->prepare('SELECT id FROM ticket_approvals WHERE id=? FOR UPDATE');
         $s->execute([$a['id']]);
@@ -209,9 +213,11 @@ function approval_decide(array $body, ?PDO $signatureSource = null): array
         $purchaseExtra=$a['type']==='purchase'&&purchase_stage($a['stage']);
         $pdo->prepare('INSERT INTO ticket_logs (ticket_id,from_status,to_status,note,is_public) VALUES (?,?,?,?,1)')
             ->execute([$a['ticket_id'],$rejectTicket ? $a['ticket_status'] : null,$rejectTicket ? 'rejected' : null,
-                $purchaseExtra ? purchase_stage_label($a['stage']).($decision==='approved'?' ลงนามเอกสารจัดซื้อแล้ว':' ไม่รับรองเอกสารจัดซื้อ (สถานะงานไม่เปลี่ยน)') : ($a['stage'] === 'completion'
+                $purchaseExtra ? purchase_stage_label($a['stage']).($decision==='approved'?' ลงนามเอกสารจัดซื้อแล้ว':' ไม่รับรองเอกสารจัดซื้อ (สถานะงานไม่เปลี่ยน)') : ($a['stage'] === 'completion' && completion_optional($a)
+                    ? ($decision === 'approved' ? 'ผอ./ผจก. ลงนามรับรองผลงานซ่อมแล้ว' : 'ผอ./ผจก. ไม่รับรองผลงานซ่อม (สถานะงานไม่เปลี่ยน)')
+                    : ($a['stage'] === 'completion'
                     ? ($decision === 'approved' ? 'ผอ./ผจก. ลงนามรับรองผลการดำเนินการแล้ว พร้อมให้ IT ปิดงาน' : 'ผอ./ผจก. ไม่รับรองผลการดำเนินการ กรุณาให้ IT ตรวจสอบและขอลายเซ็นใหม่')
-                    : ticket_approval_role($a['type']).($decision === 'approved' ? 'ลงนามอนุมัติแล้ว' : 'ลงนามไม่อนุมัติ'))]);
+                    : ticket_approval_role($a['type']).($decision === 'approved' ? 'ลงนามอนุมัติแล้ว' : 'ลงนามไม่อนุมัติ')))]);
         if ($useSaved) {
             $pdo->prepare('INSERT INTO ticket_logs (ticket_id,note,is_public) VALUES (?,?,0)')
                 ->execute([$a['ticket_id'],'ผู้อนุมัติยืนยันใช้ลายเซ็นที่บันทึกไว้ใน E-Procurement']);

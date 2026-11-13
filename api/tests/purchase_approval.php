@@ -15,11 +15,15 @@ try{
     $_SERVER['REMOTE_ADDR']='127.0.0.20';$png=drawing();$actor=['id'=>1,'display_name'=>'Fixture IT'];
     $pdo->prepare("INSERT INTO admins(id,username,password_hash,display_name,signature_data) VALUES(1,'fixture','fixture','Fixture IT',?)")->execute([$png]);
     employee_save(null,['full_name'=>'Fixture Head','email'=>'head@example.com','company'=>'Fixture Company','department'=>'Fixture Department','can_approve'=>true]);$head=(int)$pdo->query('SELECT MAX(id) FROM employees')->fetchColumn();
-    $body=['type'=>'purchase','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Department','requester_email'=>'requester@example.com','position'=>'Fixture Position','description'=>'Fixture purchase purpose','urgent'=>true,'need_by'=>'2026-11-15','items'=>['notebook','monitor'],'spec_cpu'=>'Fixture CPU','spec_ram'=>'32 GB','spec_storage'=>'1 TB','spec_display'=>'27 inches','spec_other'=>'Fixture specification','requester_signature_data'=>$png,'approver_id'=>$head,'approver_name'=>'Forged display name','asset_code'=>'NOT-A-REAL-ASSET','location'=>'Must not copy QR'];
+    $body=['type'=>'purchase','requester_name'=>'Fixture Requester','requester_dept'=>'Fixture Department','requester_email'=>'requester@example.com','position'=>'Fixture Position','description'=>'Fixture purchase purpose','urgent'=>true,'need_by'=>'2026-11-15','items'=>['notebook','monitor'],'item_quantities'=>['notebook'=>3,'monitor'=>'2','ups'=>9],'spec_cpu'=>'Fixture CPU','spec_ram'=>'32 GB','spec_storage'=>'1 TB','spec_display'=>'27 inches','spec_other'=>'Fixture specification','requester_signature_data'=>$png,'approver_id'=>$head,'approver_name'=>'Forged display name','asset_code'=>'NOT-A-REAL-ASSET','location'=>'Must not copy QR'];
     $bad=$body;unset($bad['approver_id']);rejects(fn()=>create_ticket($bad,null),422);
     $bad=$body;unset($bad['requester_signature_data']);rejects(fn()=>create_ticket($bad,null),422);
     rejects(fn()=>create_ticket([...$body,'requester_signature_data'=>drawing(true)],null),422);
     rejects(fn()=>create_ticket([...$body,'approver_id'=>999999],null),422);
+    $bad=$body;unset($bad['item_quantities']);
+    try{create_ticket($bad,null);verify(false,'Missing quantities rejected');}catch(HttpError $e){verify($e->status===422&&isset($e->errors['item_quantities.notebook'],$e->errors['item_quantities.monitor'],$e->errors['items']),'Missing quantities report each selected item and a summary');}
+    foreach([0,1000,1.5,-1,'abc','',true,[2]] as $invalid)rejects(fn()=>create_ticket([...$body,'item_quantities'=>['notebook'=>$invalid,'monitor'=>1]],null),422);
+    rejects(fn()=>create_ticket([...$body,'item_quantities'=>'3'],null),422);
     employee_save($head,['full_name'=>'Fixture Head','email'=>'head@example.com','company'=>'Fixture Company','can_approve'=>false]);rejects(fn()=>create_ticket($body,null),422);
     employee_save($head,['full_name'=>'Fixture Head','email'=>'head@example.com','company'=>'Fixture Company','can_approve'=>true]);
     verify((int)$pdo->query('SELECT COUNT(*) FROM tickets')->fetchColumn()===0,'Invalid submissions create no tickets');
@@ -31,11 +35,20 @@ try{
     verify($t['details']['approver_name']==='Fixture Head'&&$t['approval']['approver_email']==='head@example.com','Recipient identity comes from directory');
     verify($t['asset_id']===null&&$t['asset_code']===null&&$t['location']===null,'Purchase never acquires QR context');
     verify($t['priority']==='high'&&$t['details']['need_by']===$body['need_by'],'Urgency and date preserved');
+    verify($t['details']['item_quantities']===['notebook'=>3,'monitor'=>2],'Quantities stored per selected item as integers; unselected items dropped');
+    verify($t['title']==='ขอซื้อ: คอมพิวเตอร์พกพา x3, จอภาพ x2','Title includes quantities');
+    verify(purchase_items_text(['items'=>['ink']])==='หมึก','Older requests without quantities show item name only');
+    verify(purchase_items_text(['items'=>['all_in_one'],'item_quantities'=>['all_in_one'=>2]],true)==='คอมพิวเตอร์ All-in-One x2','All-in-One is a purchasable item with a quantity');
+    verify(purchase_items_text(['items'=>['thermal_printer','barcode_scanner'],'item_quantities'=>['thermal_printer'=>1,'barcode_scanner'=>4]],true)==='Thermal Printer x1, Barcode Scanner x4','Thermal printer and barcode scanner are purchasable items with quantities');
+    verify(purchase_items_text(['items'=>['barcode_scanner_wired','barcode_scanner_wireless'],'item_quantities'=>['barcode_scanner_wired'=>1,'barcode_scanner_wireless'=>4]],true)==='Barcode Scanner มีสาย x1, Barcode Scanner ไร้สาย x4','Short title keeps the wired or wireless type with its own quantity');
+    verify(in_array('barcode_scanner',PURCHASE_ITEMS_RETIRED,true)&&isset(PURCHASE_ITEMS['barcode_scanner'])&&meta_payload()['purchase_items_retired']===PURCHASE_ITEMS_RETIRED,'Retired barcode item stays readable and is flagged in meta');
+    verify(purchase_items_text(['items'=>['memory_device'],'item_quantities'=>['memory_device'=>3]],true)==='อุปกรณ์หน่วยความจำ x3','Memory device is a purchasable item with a quantity');
+    verify(($t['details']['item_details']??null)===[],'No per-item details stored when none entered');
     verify($t['print_form']['code']==='FM-IT-007'&&$t['print_form']['orientation']==='portrait'&&str_contains($t['print_form']['rev'],'Rev.03'),'Direct print receives FM007 source template');
     verify(count($t['print_form']['roles'])===6&&$t['print_form']['roles'][1]['label']===ticket_approval_role('purchase'),'Source signature slots and specific head role supplied');
     $mail=json_decode(file_get_contents($capture),true);$token=$mail['token'];
     verify(str_contains($mail['body'],'FM-IT-007 Rev.03')&&!str_contains($mail['body'],'FM-IT-010'),'Email names correct form');
-    foreach(['Fixture CPU','32 GB','1 TB','27 inches','Fixture specification','2026-11-15','Fixture purchase purpose','ผู้มีอำนาจอนุมัติต้นสังกัด'] as $expected)verify(str_contains($mail['body'],$expected),'Email includes purchase context '.$expected);
+    foreach(['คอมพิวเตอร์พกพา (Notebook) จำนวน 3','จอภาพ (Monitor) จำนวน 2','Fixture CPU','32 GB','1 TB','27 inches','Fixture specification','2026-11-15','Fixture purchase purpose','ผู้มีอำนาจอนุมัติต้นสังกัด'] as $expected)verify(str_contains($mail['body'],$expected),'Email includes purchase context '.$expected);
     verify(str_contains($mail['to'],'head@example.com')&&str_contains($mail['from'],'it-hub@example.com'),'Correct sender and chosen recipient');
     $s=$pdo->prepare('SELECT token_hash FROM ticket_approvals WHERE ticket_id=?');$s->execute([$id]);verify($s->fetchColumn()===hash('sha256',$token),'Only hashed token stored');
     $view=approval_view(['token'=>$token]);verify($view['type']==='purchase'&&json_decode($view['details'],true)['spec_ram']==='32 GB','Reviewer receives purchase type and complete specification');
@@ -59,5 +72,21 @@ try{
     approval_decide(['token'=>$rejectToken,'decision'=>'rejected','decision_note'=>'Fixture rejected','consent'=>true,'signature_data'=>$png]);verify(ticket_admin($rid)['status']==='rejected','Rejection closes request with signed reason');
     $GLOBALS['ithub_config']['smtp']['enabled']=false;$r=create_ticket($body,null);$rid=(int)$pdo->query('SELECT MAX(id) FROM tickets')->fetchColumn();verify($r['mail_status']==='failed'&&ticket_admin($rid)['requester_signature']['signature_data']===$png,'SMTP failure retains ticket and requester signature for retry');
     $pdo->exec("INSERT INTO tickets(ticket_no,type,title,requester_name,details) VALUES('PR-LEGACY-001','purchase','Legacy purchase','Legacy Requester','{\"items\":[\"notebook\"]}')");$legacy=ticket_admin((int)$pdo->lastInsertId());verify($legacy['approval']===null&&$legacy['requester_signature']===null&&$legacy['print_form']['code']==='FM-IT-007','Legacy purchase prints source form without fabricated signatures');
+    $c=create_ticket([...$body,'item_details'=>['notebook'=>'  Dell Latitude 5450  ','monitor'=>'','ups'=>'not selected']],null);$dt=ticket_admin((int)$pdo->query("SELECT id FROM tickets WHERE ticket_no=".$pdo->quote($c['ticket_no']))->fetchColumn());
+    verify($dt['details']['item_details']===['notebook'=>'Dell Latitude 5450'],'Per-item details trimmed, blanks and unselected items dropped');
+    verify($dt['title']==='ขอซื้อ: คอมพิวเตอร์พกพา x3, จอภาพ x2','Title stays short without per-item details');
+    try{create_ticket([...$body,'item_details'=>['notebook'=>str_repeat('ก',256)]],null);verify(false,'Over-long detail rejected');}catch(HttpError $e){verify($e->status===422&&isset($e->errors['item_details.notebook']),'Over-long per-item detail reports its item');}
+    rejects(fn()=>create_ticket([...$body,'item_details'=>['notebook'=>['x']]],null),422);
+    rejects(fn()=>create_ticket([...$body,'item_details'=>'Dell'],null),422);
+    verify(purchase_items_text(['items'=>['ink','monitor'],'item_quantities'=>['ink'=>2,'monitor'=>1],'item_details'=>['ink'=>'HP 682 สีดำ']])==='หมึก จำนวน 2 (HP 682 สีดำ), จอภาพ (Monitor) จำนวน 1','Approval summary shows each item detail');
+    verify(purchase_items_text(['items'=>['ink'],'item_quantities'=>['ink'=>2],'item_details'=>['ink'=>'HP 682']],true)==='หมึก x2','Short title omits item details');
+    $ob=[...$body,'items'=>['desk_phone','other'],'item_quantities'=>['desk_phone'=>2,'other'=>1]];
+    try{create_ticket($ob,null);verify(false,'Other without a typed type rejected');}catch(HttpError $e){verify($e->status===422&&isset($e->errors['item_other']),'อื่นๆ requires a typed equipment type');}
+    rejects(fn()=>create_ticket([...$ob,'item_other'=>str_repeat('ก',101)],null),422);
+    $c=create_ticket([...$ob,'item_other'=>'  Projector  ','item_details'=>['other'=>'Epson']],null);$dt=ticket_admin((int)$pdo->query("SELECT id FROM tickets WHERE ticket_no=".$pdo->quote($c['ticket_no']))->fetchColumn());
+    verify($dt['details']['item_other']==='Projector'&&$dt['title']==='ขอซื้อ: โทรศัพท์ตั้งโต๊ะ x2, อื่นๆ: Projector x1','Desk phone and typed other item stored and titled');
+    verify(purchase_items_text($dt['details'])==='โทรศัพท์ตั้งโต๊ะ จำนวน 2, อื่นๆ: Projector จำนวน 1 (Epson)','Approval summary names the typed other item');
+    $c=create_ticket([...$body,'item_other'=>'Ignored'],null);$dt=ticket_admin((int)$pdo->query("SELECT id FROM tickets WHERE ticket_no=".$pdo->quote($c['ticket_no']))->fetchColumn());
+    verify(!array_key_exists('item_other',$dt['details']),'Typed other ignored when อื่นๆ is not selected');
     echo "PASS: $checks purchase approval checks; temporary tables and loopback SMTP only\n";
 }finally{proc_terminate($process);foreach($pipes as $pipe)fclose($pipe);proc_close($process);@unlink($capture);}

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { PurchaseRequestData } from '@/api'
 import { meta } from '@/store'
+import PurchaseItemPicker from './PurchaseItemPicker.vue'
 defineProps<{disabled?:boolean;errors?:Record<string,string>}>()
 const model=defineModel<PurchaseRequestData>({required:true})
 </script>
 <template>
   <fieldset :disabled="disabled" class="min-w-0 space-y-4">
     <div><label for="edit_description" class="label">รายละเอียด / วัตถุประสงค์ <span class="text-red-500">*</span></label><textarea id="edit_description" v-model="model.description" class="input" rows="5" maxlength="5000" required /><p v-if="errors?.description" class="field-error">{{errors.description}}</p></div>
-    <div><span class="label">ประเภทอุปกรณ์ที่ต้องการ <span class="text-red-500">*</span></span><div class="grid gap-2 sm:grid-cols-2"><label v-for="(label,key) in meta?.purchase_items" :key="key" class="choice"><input v-model="model.items" type="checkbox" :value="key" />{{label}}</label></div><p v-if="errors?.items" class="field-error">{{errors.items}}</p></div>
+    <div><span class="label">ประเภทอุปกรณ์ที่ต้องการ <span class="text-red-500">*</span></span><PurchaseItemPicker v-if="meta" v-model:items="model.items" v-model:quantities="model.item_quantities" v-model:details="model.item_details" v-model:other="model.item_other" :options="meta.purchase_items" :errors="errors" id-prefix="edit" /><p v-if="errors?.items" class="field-error">{{errors.items}}</p></div>
     <div class="grid gap-3 sm:grid-cols-2">
       <div><label for="edit_position" class="label">ตำแหน่ง</label><input id="edit_position" v-model="model.position" class="input" maxlength="100" /></div>
       <div><label for="edit_need_by" class="label">ต้องการภายในวันที่</label><input id="edit_need_by" v-model="model.need_by" class="input" type="date" /><p v-if="errors?.need_by" class="field-error">{{errors.need_by}}</p></div>

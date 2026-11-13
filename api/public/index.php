@@ -4,6 +4,8 @@ declare(strict_types=1);
 require __DIR__ . '/../src/bootstrap.php';
 require __DIR__ . '/../src/assets.php';
 require __DIR__ . '/../src/asset_import.php';
+require __DIR__ . '/../src/document_import.php';
+require __DIR__ . '/../src/inspections.php';
 require __DIR__ . '/../src/admin.php';
 
 header('X-Content-Type-Options: nosniff');
@@ -34,6 +36,8 @@ $r->get('/assets/{code}', fn(string $code) => asset_public($code));
 $r->post('/tickets', fn() => create_ticket(request_body(), $_FILES['photo'] ?? null));
 $r->get('/track/{code}', fn(string $no) => ticket_public($no));
 $r->get('/approvers', fn() => employee_approvers());
+$r->get('/companies', fn() => public_companies());
+$r->get('/companies/{id}/logo', fn(int $id) => company_logo_send($id));
 $r->post('/approval/view', fn() => approval_view(request_body()));
 $r->post('/approval/decide', fn() => approval_decide(request_body()));
 $r->post('/request-edit/view', fn() => request_edit_view(request_body()));
@@ -63,9 +67,22 @@ $r->post('/admin/nas', fn() => nas_save(request_body(), require_admin()));
 $r->post('/admin/nas/disconnect', function () { require_admin(); return nas_disconnect(request_body()); });
 $r->get('/admin/document-forms', function () { require_admin(); return ['forms'=>document_forms(),'statuses'=>DOCUMENT_STATUSES]; });
 $r->get('/admin/document-templates/{code}', function (string $code) { require_admin(); document_template($code); });
+$r->get('/admin/document-import/template/{code}', function (string $code) { require_admin(); document_import_template($code); });
+$r->post('/admin/document-import/preview', fn() => document_import_upload($_FILES['file'] ?? [], require_admin()));
+$r->post('/admin/document-import/apply', fn() => document_import_upload($_FILES['file'] ?? [], require_admin(), true));
 $r->get('/admin/documents', function () { require_admin(); return document_list($_GET); });
 $r->get('/admin/document-prefill', function () { require_admin(); return document_prefill($_GET); });
 $r->get('/admin/borrow-requests', function () { require_admin(); return borrow_pending_requests($_GET); });
+$r->get('/admin/borrow-items', function () { require_admin(); return borrow_items($_GET); });
+// FM-IT-002 ใบตรวจสอบโครงสร้างพื้นฐาน (living yearly checklist)
+$r->get('/admin/inspections', function () { require_admin(); return inspection_get($_GET); });
+$r->post('/admin/inspections/import/preview', fn() => inspection_import_upload($_FILES['file'] ?? [], require_admin()));
+$r->post('/admin/inspections/import/apply', fn() => inspection_import_upload($_FILES['file'] ?? [], require_admin(), true));
+$r->put('/admin/inspections/items/{id}', function (int $id) { require_admin(); return inspection_update_item($id, request_body()); });
+$r->delete('/admin/inspections/items/{id}', function (int $id) { require_admin(); return inspection_delete_item($id); });
+$r->post('/admin/inspections/{year}/months/{month}', fn(string $year, string $month) => inspection_save_month($year, $month, request_body(), require_admin()));
+$r->post('/admin/inspections/{year}/items/bulk', fn(string $year) => inspection_bulk_add($year, request_body(), require_admin()));
+$r->post('/admin/inspections/{year}/items', fn(string $year) => inspection_add_item($year, request_body(), require_admin()));
 $r->post('/admin/tickets/{id}/archive/retry', function(int $id) {require_admin();return archive_retry($id);});
 $r->post('/admin/tickets/{id}/borrow-approval', fn(int $id) => borrow_decide($id,request_body(),require_admin()));
 $r->post('/admin/documents', fn() => document_save(null,request_body(),require_admin()));
@@ -76,15 +93,21 @@ $r->post('/admin/documents/{id}/sign', fn(int $id) => document_decide(request_bo
 $r->post('/admin/documents/{id}/resend', function (int $id) { require_admin(); document_send_pending($id,true); return document_detail($id); });
 $r->post('/admin/documents/{id}/copy', fn(int $id) => document_copy($id,require_admin()));
 $r->post('/admin/documents/{id}/cancel', fn(int $id) => document_cancel($id,require_admin()));
+$r->delete('/admin/documents/{id}', fn(int $id) => document_delete($id,request_body(),require_admin()));
+$r->post('/admin/documents/{id}/restore', fn(int $id) => document_restore($id,require_admin()));
 $r->get('/admin/dashboard', function () {
     require_admin();
     return dashboard();
 });
 
 $r->get('/admin/tickets', function () {
-    require_admin();
-    return ticket_list($_GET);
+    $admin = require_admin();
+    return ticket_list($_GET, empty($_GET['unread']) ? null : (int)$admin['id']);
 });
+$r->post('/admin/tickets/{id}/read', fn(int $id) => ticket_mark_read($id, require_admin()));
+$r->get('/admin/signature-notices', fn() => signature_notices((int)require_admin()['id']));
+$r->post('/admin/tickets/{id}/signatures/read', fn(int $id) => signature_notices_mark_read($id, require_admin()));
+$r->post('/admin/tickets/{id}/restore', fn(int $id) => ticket_restore($id, require_admin()));
 $r->post('/admin/tickets/{id}/request-edit', fn(int $id) => request_edit_admin($id,request_body(),require_admin()));
 $r->post('/admin/tickets/{id}/return-to-requester', fn(int $id) => request_edit_return($id,request_body(),require_admin()));
 $r->post('/admin/tickets/{id}/approval/resend', function (int $id) {
@@ -108,6 +131,7 @@ $r->get('/admin/tickets/{id}', function (int $id) {
     return ticket_admin($id);
 });
 $r->patch('/admin/tickets/{id}', fn(int $id) => update_ticket($id, request_body(), require_admin()));
+$r->delete('/admin/tickets/{id}', fn(int $id) => ticket_delete($id, request_body(), require_admin()));
 $r->get('/admin/tickets/{id}/photo', function (int $id) {
     require_admin();
     $stmt = db()->prepare('SELECT photo_path FROM tickets WHERE id = ?');

@@ -58,7 +58,7 @@ function it_ticket_sign(int $id, array $actor): array
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $s = $pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');
+        $s = $pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');
         $s->execute([$id]);
         $ticket = $s->fetch() ?: fail('ไม่พบคำขอ',404);
         if (in_array($ticket['status'],['rejected','cancelled'],true)) fail('คำขอนี้ปฏิเสธหรือยกเลิกแล้ว',409);

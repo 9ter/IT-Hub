@@ -58,7 +58,7 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
-  del: <T>(path: string) => request<T>('DELETE', path),
+  del: <T>(path: string, body?: unknown) => request<T>('DELETE', path, body),
 }
 
 export const photoUrl = (ticketId: number) => `${BASE}/admin/tickets/${ticketId}/photo`
@@ -77,9 +77,11 @@ export interface Meta {
   ticket_priorities: Record<Priority, string>
   asset_statuses: Record<AssetStatus, string>
   service_actions: Record<string, string>
+  service_actions_retired?: string[]
   device_kinds: Record<string, string>
   email_companies: Record<string, string>
   purchase_items: Record<string, string>
+  purchase_items_retired?: string[]
   categories: { id: number; name: string; icon: string }[]
 }
 
@@ -147,13 +149,32 @@ export interface TicketRow {
   priority: Priority
   requester_name: string
   requester_dept: string | null
+  /** ชื่อบริษัทที่ผู้ขอเลือก (ใบก่อนมีการเลือกบริษัท = null) */
+  requester_company?: string | null
   created_at: string
   finished_at?: string | null
   asset_code: string | null
   assigned_name: string | null
+  deleted_at?: string | null
+  delete_reason?: string | null
+  deleted_by_name?: string | null
 }
 
 export interface ArchiveStatus {id:number;status:string;filename:string|null;relative_path?:string|null;attempts:number;sent_at:string|null;last_error:string|null;created_at:string}
+/** ลายเซ็นที่ผู้อนุมัติลงนามแล้ว (อนุมัติ/ไม่อนุมัติ) ที่บัญชีนี้ยังไม่เห็น — ใช้ในกระดิ่งแจ้งเตือน */
+export interface SignatureNotice {
+  id: number
+  ticket_id: number
+  ticket_no: string
+  type: TicketType
+  title: string
+  stage: string
+  status: 'approved' | 'rejected'
+  approver_name: string
+  role: string
+  signed_at: string
+}
+
 export interface Ticket extends TicketRow {
   request_edit_version?: string
   request_edit_return?: RequestEditReturn|null
@@ -164,6 +185,7 @@ export interface Ticket extends TicketRow {
   purchase_fields?: PurchaseFields
   purchase_approvals?: Partial<Record<PurchaseRole,(Approval & {current:boolean})|null>>
   purchase_signing_roles?: Record<PurchaseRole,{stage:string;label:string}>
+  purchase_default_approver_ids?: Partial<Record<PurchaseRole,number|null>>
   print_form?: import('./documents').DocumentDefinition
   it_signature: ItSignature | null
   completion_required: boolean
@@ -250,7 +272,10 @@ export interface RequestEditReturn {
   id:number;reason:string;requester_email:string;status:'pending'|'submitted'|'superseded';expires_at:string;created_at:string;submitted_at:string|null;mail_status:'pending'|'sent'|'failed';mail_error:string|null
 }
 export interface PurchaseRequestData {
-  description:string;position:string;urgent:boolean;need_by:string;items:string[];spec_cpu:string;spec_ram:string;spec_storage:string;spec_display:string;spec_other:string
+  description:string;position:string;urgent:boolean;need_by:string;items:string[];item_quantities:Record<string,number|''>;item_details:Record<string,string>;item_other:string;spec_cpu:string;spec_ram:string;spec_storage:string;spec_display:string;spec_other:string
+}
+export interface BorrowRequestData {
+  description:string;borrow_items:{device_kind:'notebook'|'other'|'';item:string;quantity:number|''}[];start_date:string;end_date:string
 }
 export interface PurchaseFields {
   vendor:string|null;vendor_phone:string|null;quotation:string|null;quotation_date:string|null;amount:string|null;vat:string|null

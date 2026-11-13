@@ -4,7 +4,7 @@ import { useRoute,useRouter } from 'vue-router'
 import { api,ApiError,type PurchaseRequestData } from '@/api'
 import PublicShell from '@/components/PublicShell.vue'
 import PurchaseRequestFields from '@/components/PurchaseRequestFields.vue'
-import { purchaseRequestData } from '@/requestEdits'
+import { purchaseItemErrors,purchaseRequestData } from '@/requestEdits'
 import { fmtDateTime } from '@/format'
 const route=useRoute(),router=useRouter(),token=ref('')
 const info=ref<{ticket_no:string;requester_name:string;reason:string;expires_at:string;version:string;request:PurchaseRequestData}|null>(null)
@@ -18,7 +18,7 @@ async function load(){
 async function submit(){
   if(saving.value||!info.value)return
   errors.value={};formError.value=''
-  if(!data.value.items.length){errors.value={items:'กรุณาเลือกประเภทอุปกรณ์อย่างน้อย 1 รายการ'};return}
+  const invalid=purchaseItemErrors(data.value.items,data.value.item_quantities,data.value.item_details,data.value.item_other);if(Object.keys(invalid).length){errors.value=invalid;return}
   saving.value=true
   const submittedToken=token.value
   try{await api.post('/request-edit/submit',{token:submittedToken,version:info.value.version,request:data.value});if(token.value===submittedToken)done.value=true}

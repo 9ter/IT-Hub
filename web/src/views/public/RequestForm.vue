@@ -4,17 +4,24 @@ import { useRoute } from 'vue-router'
 import { api, ApiError, type PublicAsset, type TicketType, type Approver } from '@/api'
 import Icon from '@/components/Icon.vue'
 import PublicShell from '@/components/PublicShell.vue'
+import PurchaseItemPicker from '@/components/PurchaseItemPicker.vue'
 import SignaturePad from '@/components/SignaturePad.vue'
 import { nowLocalInput, todayInput } from '@/format'
 import { meta, rememberTicket, savedRequester, saveRequester } from '@/store'
+import { purchaseItemDetailsPayload, purchaseItemErrors } from '@/requestEdits'
 import { typeInfo } from '@/ticketTypes'
+import { selectedCompany } from '@/companies'
 
 const props = defineProps<{ type: string }>()
 const route = useRoute()
 
 const type = computed(() => props.type as TicketType)
 const def = computed(() => meta.value!.ticket_types[type.value])
+const serviceActions = computed(() => Object.entries(meta.value!.service_actions).filter(([key]) => !meta.value!.service_actions_retired?.includes(key)))
 const requiresApproval = computed(() => type.value==='service'||type.value==='purchase')
+// FM-IT-003 has a ผู้แจ้งซ่อม signature without an approver before IT starts work.
+const requiresSignature = computed(() => requiresApproval.value || type.value==='repair')
+const signerRole = computed(() => type.value==='repair' ? 'ผู้แจ้งซ่อม' : 'ผู้ร้องขอ')
 const approvalLabel = computed(() => type.value==='purchase'?'ผู้มีอำนาจอนุมัติต้นสังกัด (หน./ผจก.)':'หัวหน้าฝ่าย / ผู้อนุมัติ')
 
 const remembered = savedRequester()
@@ -35,7 +42,13 @@ async function loadApprovers() {
 }
 watch(type, (t) => { if (t === 'service'||t==='purchase') loadApprovers() }, { immediate: true })
 const approverCompanyLabel = (a: Approver) => (a.companies || [a.company]).join(' / ')
-const approverCompanies = computed(() => [...new Set(approvers.value.map(approverCompanyLabel))])
+/** ผู้อนุมัติของบริษัทที่เลือกก่อน (ถ้าบริษัทนั้นไม่มีผู้อนุมัติเลย แสดงทั้งหมดเหมือนเดิม) */
+const approverChoices = computed(() => {
+  const name = selectedCompany.value?.name
+  const mine = name ? approvers.value.filter((a) => (a.companies || [a.company]).includes(name)) : []
+  return mine.length ? mine : approvers.value
+})
+const approverCompanies = computed(() => [...new Set(approverChoices.value.map(approverCompanyLabel))])
 const copied = ref(false)
 
 const f = reactive({
@@ -62,7 +75,7 @@ const f = reactive({
   // email
   name_th: '',
   name_en: '',
-  company: 'ats',
+  company: selectedCompany.value?.code === 'ATSINNO' ? 'ats_innovation' : 'ats',
   desired_email: '',
   // borrow
   borrow_items: [{device_kind:'',item:'',quantity:1}],
@@ -72,6 +85,9 @@ const f = reactive({
   urgent: false,
   need_by: '',
   items: [] as string[],
+  item_quantities: {} as Record<string, number | ''>,
+  item_details: {} as Record<string, string>,
+  item_other: '',
   spec_cpu: '',
   spec_ram: '',
   spec_storage: '',
@@ -168,13 +184,14 @@ function payload() {
     type: type.value,
     requester_name: f.requester_name,
     requester_dept: f.requester_dept,
+    ...(selectedCompany.value ? { company_id: selectedCompany.value.id } : {}),
     requester_phone: f.requester_phone,
     requester_email: f.requester_email,
     description: f.description,
   }
   switch (type.value) {
     case 'repair':
-      return { ...common, asset_code: f.asset_code, location: f.location, job_type: f.job_type, equipment: f.equipment, found_at: f.found_at }
+      return { ...common, requester_signature_data: f.requester_signature_data, asset_code: f.asset_code, location: f.location, job_type: f.job_type, equipment: f.equipment, found_at: f.found_at }
     case 'service':
       return { ...common, requester_signature_data: f.requester_signature_data, position: f.position, device_kind: f.device_kind, actions: f.actions, os_target: f.os_target, other_text: f.other_text, approver_id: f.approver_id }
     case 'email':
@@ -190,6 +207,9 @@ function payload() {
         urgent: f.urgent,
         need_by: f.need_by,
         items: f.items,
+        item_quantities: Object.fromEntries(f.items.map((k) => [k, f.item_quantities[k]])),
+        item_details: purchaseItemDetailsPayload(f.items, f.item_details),
+        ...(f.items.includes('other') ? { item_other: f.item_other.trim() } : {}),
         spec_cpu: f.spec_cpu,
         spec_ram: f.spec_ram,
         spec_storage: f.spec_storage,
@@ -203,8 +223,17 @@ async function submit() {
   if (submitting.value) return
   errors.value = {}
   formError.value = ''
-  if (requiresApproval.value && !f.requester_signature_data) {
-    errors.value.requester_signature_data = 'กรุณาวาดลายเซ็นผู้ร้องขอก่อนส่งคำขอ'
+  if (type.value === 'purchase') {
+    const invalid = purchaseItemErrors(f.items, f.item_quantities, f.item_details, f.item_other)
+    if (Object.keys(invalid).length) {
+      errors.value = invalid
+      formError.value = invalid.items
+      requestAnimationFrame(() => document.querySelector('.input-error, .field-error')?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+      return
+    }
+  }
+  if (requiresSignature.value && !f.requester_signature_data) {
+    errors.value.requester_signature_data = `กรุณาวาดลายเซ็น${signerRole.value}ก่อนส่งคำขอ`
     formError.value = errors.value.requester_signature_data
     document.getElementById('requester_signature_heading')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     return
@@ -225,7 +254,7 @@ async function submit() {
   } catch (e) {
     if (e instanceof ApiError) {
       errors.value = e.errors
-      formError.value = e.message
+      formError.value = e.errors.company_id || e.message
     } else {
       formError.value = 'ส่งไม่สำเร็จ กรุณาลองใหม่'
     }
@@ -354,7 +383,7 @@ const inputClass = (k: string) => ['input', err(k) && 'input-error']
           <div>
             <span class="label">ต้องการให้ดำเนินการ <span class="text-red-500 dark:text-red-400">*</span></span>
             <div class="grid gap-2">
-              <label v-for="(label, k) in meta!.service_actions" :key="k" class="choice"><input v-model="f.actions" type="checkbox" :value="k" /> {{ label }}</label>
+              <label v-for="[k, label] in serviceActions" :key="k" class="choice"><input v-model="f.actions" type="checkbox" :value="k" /> {{ label }}</label>
             </div>
             <p v-if="err('actions')" class="field-error">{{ err('actions') }}</p>
           </div>
@@ -470,9 +499,7 @@ const inputClass = (k: string) => ['input', err(k) && 'input-error']
           </div>
           <div>
             <span class="label">ประเภทอุปกรณ์ที่ต้องการ <span class="text-red-500 dark:text-red-400">*</span></span>
-            <div class="grid gap-2 sm:grid-cols-2">
-              <label v-for="(label, k) in meta!.purchase_items" :key="k" class="choice"><input v-model="f.items" type="checkbox" :value="k" /> {{ label }}</label>
-            </div>
+            <PurchaseItemPicker v-model:items="f.items" v-model:quantities="f.item_quantities" v-model:details="f.item_details" v-model:other="f.item_other" :options="meta!.purchase_items" :errors="errors" id-prefix="purchase" />
             <p v-if="err('items')" class="field-error">{{ err('items') }}</p>
           </div>
           <div>
@@ -525,12 +552,12 @@ const inputClass = (k: string) => ['input', err(k) && 'input-error']
             <select id="approver_id" v-model="f.approver_id" :class="inputClass('approver_id')" required>
               <option value="" disabled>เลือก{{approvalLabel}}</option>
               <optgroup v-for="company in approverCompanies" :key="company" :label="company">
-                <option v-for="a in approvers.filter(a => approverCompanyLabel(a) === company)" :key="a.id" :value="a.id">{{ a.full_name }} — {{ a.department || a.position || company }}</option>
+                <option v-for="a in approverChoices.filter(a => approverCompanyLabel(a) === company)" :key="a.id" :value="a.id">{{ a.full_name }} — {{ a.department || a.position || company }}</option>
               </optgroup>
             </select>
             <p v-if="err('approver_id')" class="field-error">{{ err('approver_id') }}</p>
             <p v-if="approverError" class="field-error">{{ approverError }} <button type="button" class="underline" @click="loadApprovers">โหลดรายชื่อใหม่</button></p>
-            <p v-else-if="!approvers.length" class="mt-1 text-sm text-amber-700 dark:text-amber-300">ยังไม่มีผู้อนุมัติ กรุณาติดต่อ IT เพื่อจัดการข้อมูลพนักงาน</p>
+            <p v-else-if="!approverChoices.length" class="mt-1 text-sm text-amber-700 dark:text-amber-300">ยังไม่มีผู้อนุมัติ กรุณาติดต่อ IT เพื่อจัดการข้อมูลพนักงาน</p>
             <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">เมื่อส่งคำขอ ระบบจะส่งอีเมลให้ผู้ที่เลือกตรวจสอบและลงลายเซ็นก่อน IT ดำเนินการ</p>
           </div>
           <div v-if="type === 'email'">
@@ -543,10 +570,10 @@ const inputClass = (k: string) => ['input', err(k) && 'input-error']
         </label>
       </section>
 
-      <section v-if="requiresApproval" class="card mt-4 space-y-3 p-5" aria-labelledby="requester_signature_heading">
-        <h2 id="requester_signature_heading" class="font-semibold">ลงนามผู้ร้องขอ</h2>
-        <div><label class="label" for="requester_signer_name">ชื่อผู้ร้องขอ</label><input id="requester_signer_name" :value="f.requester_name" class="input bg-slate-50 dark:bg-slate-900" readonly placeholder="กรอกชื่อ-นามสกุลในข้อมูลผู้แจ้งด้านบน" /></div>
-        <p class="label">ลายเซ็นผู้ร้องขอ <span class="text-red-500 dark:text-red-400">*</span></p>
+      <section v-if="requiresSignature" class="card mt-4 space-y-3 p-5" aria-labelledby="requester_signature_heading">
+        <h2 id="requester_signature_heading" class="font-semibold">ลงนาม{{ signerRole }}</h2>
+        <div><label class="label" for="requester_signer_name">ชื่อ{{ signerRole }}</label><input id="requester_signer_name" :value="f.requester_name" class="input bg-slate-50 dark:bg-slate-900" readonly placeholder="กรอกชื่อ-นามสกุลในข้อมูลผู้แจ้งด้านบน" /></div>
+        <p class="label">ลายเซ็น{{ signerRole }} <span class="text-red-500 dark:text-red-400">*</span></p>
         <SignaturePad :key="type" v-model="f.requester_signature_data" />
         <p v-if="err('requester_signature_data')" class="field-error">{{ err('requester_signature_data') }}</p>
         <p class="text-xs text-slate-500 dark:text-slate-400">เมื่อส่งคำขอ ระบบจะบันทึกชื่อ ลายเซ็น และวันเวลาลงนามไว้ในคำขอนี้และฉบับพิมพ์</p>

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { ref } from 'vue'
 import { checkAuth } from './store'
+import { companySkipped, selectedCompany } from './companies'
 
 export const navigationErrorHref = ref<string | null>(null)
 
@@ -8,10 +9,12 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
   routes: [
-    { path: '/', name: 'home', component: () => import('./views/public/Home.vue') },
+    // ก่อนเข้าหน้าหลัก/ฟอร์มคำขอ ให้เลือกบริษัท (ข้อมูลจากระบบจัดซื้อ) — ลิงก์ลงนาม/ติดตาม/QR ไม่ต้องเลือก
+    { path: '/choose-company', name: 'choose-company', component: () => import('./views/public/ChooseCompany.vue') },
+    { path: '/', name: 'home', component: () => import('./views/public/Home.vue'), meta: { company: true } },
     // URL ใน QR Code: /it-hub/a/<รหัสอุปกรณ์>
     { path: '/a/:code', name: 'asset', component: () => import('./views/public/AssetView.vue'), props: true },
-    { path: '/request/:type', name: 'request', component: () => import('./views/public/RequestForm.vue'), props: true },
+    { path: '/request/:type', name: 'request', component: () => import('./views/public/RequestForm.vue'), props: true, meta: { company: true } },
     { path: '/track/:no?', name: 'track', component: () => import('./views/public/Track.vue'), props: true },
     { path: '/approve', name: 'approve', component: () => import('./views/public/Approve.vue') },
     { path: '/request-edit', name: 'request-edit', component: () => import('./views/public/RequestEdit.vue') },
@@ -35,6 +38,8 @@ const router = createRouter({
         { path: 'employees', name: 'employees', component: () => import('./views/admin/Employees.vue') },
         { path: 'documents', name: 'documents', component: () => import('./views/admin/Documents.vue') },
         { path: 'borrows', name: 'borrow-records', component: () => import('./views/admin/Documents.vue') },
+        { path: 'inspections', name: 'inspections', component: () => import('./views/admin/Inspections.vue') },
+        { path: 'borrows/items', name: 'borrow-items', component: () => import('./views/admin/BorrowItems.vue') },
         { path: 'documents/new', name: 'document-new', component: () => import('./views/admin/DocumentDetail.vue') },
         { path: 'documents/:id', name: 'document-detail', component: () => import('./views/admin/DocumentDetail.vue') },
       ],
@@ -46,6 +51,9 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  if (to.meta.company && !selectedCompany.value && !companySkipped.value) {
+    return { name: 'choose-company', query: to.fullPath === '/' ? {} : { next: to.fullPath } }
+  }
   if (!to.matched.some((r) => r.meta.admin)) return true
   try {
     return (await checkAuth()) ? true : { name: 'login', query: { next: to.fullPath } }

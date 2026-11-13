@@ -13,7 +13,7 @@ function borrow_pending_requests(array $q): array
 {
     return paginate("SELECT t.id,t.ticket_no,t.title,t.requester_name,t.requester_dept,t.created_at FROM tickets t
         LEFT JOIN ticket_borrow_decisions b ON b.ticket_id=t.id
-        WHERE t.type='borrow' AND b.ticket_id IS NULL AND t.status NOT IN ('done','rejected','cancelled') ORDER BY t.id",
+        WHERE t.type='borrow' AND t.deleted_at IS NULL AND b.ticket_id IS NULL AND t.status NOT IN ('done','rejected','cancelled') ORDER BY t.id",
         [],(int)($q['page']??1),12);
 }
 
@@ -36,8 +36,8 @@ function borrow_record_create(array $ticket,array $actor): int
         'rows'=>$rows],'request');
     $no='IT-008-'.thai_year_month().'-'.strtoupper(bin2hex(random_bytes(4)));
     db()->prepare("INSERT INTO it_documents (document_no,form_code,title,document_date,company,status,data,created_by,source_note,source_key)
-        VALUES (?,'FM-IT-008',?,CURRENT_DATE(),'บริษัท อัตถสาร จำกัด','in_progress',?,?,?,?)")
-        ->execute([$no,$def['title'],json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$actor['id'],
+        VALUES (?,'FM-IT-008',?,CURRENT_DATE(),?,'in_progress',?,?,?,?)")
+        ->execute([$no,$def['title'],$v['requester_company']['name']??'บริษัท อัตถสาร จำกัด',json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$actor['id'],
             'อนุมัติจากคำขอ '.$ticket['ticket_no'],'borrow-ticket:'.$ticket['id']]);
     $id=(int)db()->lastInsertId();
     document_log($id,'Admin IT Hub อนุมัติคำขอ '.$ticket['ticket_no'].' และสร้างบันทึกเบิก–ยืม',(int)$actor['id']);
@@ -50,7 +50,7 @@ function borrow_decide(int $id,array $body,array $actor): array
     $note=$in->str('decision_note',2000,$decision==='rejected','เหตุผลที่ไม่อนุมัติ');$in->check();
     $pdo=db();$pdo->beginTransaction();
     try {
-        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? FOR UPDATE');$s->execute([$id]);
+        $s=$pdo->prepare('SELECT * FROM tickets WHERE id=? AND deleted_at IS NULL FOR UPDATE');$s->execute([$id]);
         $t=$s->fetch() ?: fail('ไม่พบคำขอ',404);
         if ($t['type']!=='borrow') fail('ขั้นตอนนี้ใช้เฉพาะคำขอเบิก–ยืมอุปกรณ์',422);
         $s=$pdo->prepare('SELECT * FROM ticket_borrow_decisions WHERE ticket_id=?');$s->execute([$id]);$old=$s->fetch();
@@ -72,4 +72,44 @@ function borrow_decide(int $id,array $body,array $actor): array
         $pdo->commit();
     } catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     return ticket_admin($id);
+}
+
+/** Every FM-IT-008 item across all records, flattened for the combined view/print. */
+function borrow_items(array $q): array
+{
+    $docs=(string)($q['documents']??'active');
+    $docWhere=match($docs){'all'=>'','cancelled'=>" AND d.status='cancelled'",default=>" AND d.status<>'cancelled'"};
+    $state=in_array($q['state']??'',['outstanding','overdue','returned'],true)?$q['state']:'';
+    $needle=mb_strtolower(trim((string)($q['q']??'')));
+    $today=date('Y-m-d');
+    $s=db()->query("SELECT d.id,d.document_no,d.document_date,d.company,d.status,d.data,t.ticket_no FROM it_documents d
+        LEFT JOIN ticket_borrow_decisions b ON b.document_id=d.id AND b.decision='approved'
+        LEFT JOIN tickets t ON t.id=b.ticket_id AND t.deleted_at IS NULL
+        WHERE d.form_code='FM-IT-008' AND d.deleted_at IS NULL$docWhere ORDER BY d.id DESC");
+    $keys=['department','user','purpose','device_kind','item','quantity','serial','date','issuer','head','returned_at','returner','receiver','return_condition'];
+    $items=[];$counts=['all'=>0,'outstanding'=>0,'overdue'=>0,'returned'=>0];$docIds=[];
+    foreach($s as $d) {
+        $data=json_decode($d['data'],true,512,JSON_THROW_ON_ERROR);
+        $fields=$data['fields']??[];
+        foreach(array_values($data['rows']??[]) as $i=>$row) {
+            $item=['document_id'=>(int)$d['id'],'document_no'=>$d['document_no'],'document_date'=>$d['document_date'],'company'=>$d['company'],'document_status'=>$d['status'],'ticket_no'=>$d['ticket_no'],'line'=>$i+1,
+                'start_date'=>$fields['start_date']??null,'end_date'=>$fields['end_date']??null];
+            foreach($keys as $k) $item[$k]=is_scalar($row[$k]??null)?(string)$row[$k]:null;
+            $returned=($item['returned_at']??'')!=='';
+            $item['state']=$d['status']==='cancelled'?'cancelled':($returned?'returned':'outstanding');
+            $item['overdue']=$item['state']==='outstanding' && !empty($item['end_date']) && $item['end_date']<$today;
+            if ($needle!=='' && !str_contains(mb_strtolower(implode(' ',array_filter([$item['document_no'],$item['ticket_no'],$item['company'],...array_map(fn($k)=>$item[$k],$keys)],fn($v)=>$v!==null))),$needle)) continue;
+            $counts['all']++;
+            if ($item['state']==='returned') $counts['returned']++;
+            if ($item['state']==='outstanding') $counts['outstanding']++;
+            if ($item['overdue']) $counts['overdue']++;
+            if ($state==='outstanding' && $item['state']!=='outstanding') continue;
+            if ($state==='overdue' && !$item['overdue']) continue;
+            if ($state==='returned' && $item['state']!=='returned') continue;
+            $items[]=$item;$docIds[$item['document_id']]=true;
+        }
+    }
+    $limit=5000;
+    $cancelled=(int)db()->query("SELECT COUNT(*) FROM it_documents WHERE form_code='FM-IT-008' AND status='cancelled' AND deleted_at IS NULL")->fetchColumn();
+    return ['data'=>array_slice($items,0,$limit),'total'=>count($items),'truncated'=>count($items)>$limit,'documents'=>count($docIds),'counts'=>$counts,'cancelled_documents'=>$cancelled,'today'=>$today];
 }

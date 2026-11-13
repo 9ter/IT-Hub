@@ -36,6 +36,8 @@ return [
     // จำกัดจำนวนคำขอจากผู้ใช้ทั่วไปต่อ IP ใน 10 นาที
     'public_submit_limit' => 10,
     'completion_default_approver_name' => 'สมไชย อักษร',
+    // ผู้รับอีเมลเริ่มต้นของลายเซ็นจัดซื้อ FM-IT-007 (director / purchasing / md)
+    'purchase_default_approver_names' => ['director' => 'วิศวะนนท์ อรุณเจริญพร', 'md' => 'สมไชย อักษร'],
 
     // Credentials belong only in the ignored local config.php.
     'smtp' => [
@@ -47,6 +49,8 @@ return [
         'password' => '',
         'from_email' => 'IT.HUB@atthasan.com',
     ],
+    // Companies shown on /choose-company (read from E-Procurement). Omit = active companies that have a logo.
+    // 'public_company_codes' => ['ATS', 'ATSINNO'],
     // Read-only source. Sync never writes into E-Procurement.
     'employee_source' => [
         'host' => '127.0.0.1', 'port' => 3306, 'name' => '', 'user' => '', 'pass' => '',

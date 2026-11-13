@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SignatureImage from '@/components/SignatureImage.vue'
 import { reactive, ref, watch } from 'vue'
 import { api, ApiError, type AdminRow } from '@/api'
 import Icon from '@/components/Icon.vue'
@@ -136,7 +137,7 @@ async function changePassword() {
                   {{ a.is_active ? 'ใช้งาน' : 'ปิดใช้งาน' }}
                 </span>
               </td>
-              <td><button class="btn-ghost px-2 py-1" :aria-label="`จัดการลายเซ็น ${a.display_name}`" @click="openSignature(a)"><img v-if="a.signature_data" :src="a.signature_data" :alt="`ลายเซ็น ${a.display_name}`" class="bg-white rounded h-10 w-24 object-contain" /><span v-else class="text-xs text-brand-700 dark:text-brand-300">เพิ่มลายเซ็น</span></button></td>
+              <td><button class="btn-ghost px-2 py-1" :aria-label="`จัดการลายเซ็น ${a.display_name}`" @click="openSignature(a)"><SignatureImage v-if="a.signature_data" :src="a.signature_data" :alt="`ลายเซ็น ${a.display_name}`" class="bg-white rounded h-10 w-24 object-contain" /><span v-else class="text-xs text-brand-700 dark:text-brand-300">เพิ่มลายเซ็น</span></button></td>
               <td class="whitespace-nowrap text-slate-600 dark:text-slate-300">{{ fmtDateTime(a.last_login_at) }}</td>
               <td><button class="btn-ghost p-2" :aria-label="`แก้ไข ${a.display_name}`" @click="open(a)"><Icon name="edit" :size="16" /></button></td>
             </tr>
@@ -166,10 +167,10 @@ async function changePassword() {
   <Modal v-if="signatureEditing" :title="`ลายเซ็น ${signatureEditing.display_name}`" wide @close="closeSignature">
     <form class="space-y-4" @submit.prevent="saveSignature()">
       <p class="text-sm text-slate-600 dark:text-slate-300">ใช้ในช่อง “เจ้าหน้าที่เทคโนโลยีสารสนเทศ” เมื่อเจ้าของบัญชีส่งผลดำเนินการหรือปิดงาน ชื่อที่แสดงของบัญชีจะใช้เป็นชื่อผู้ลงนามในเอกสาร</p>
-      <div v-if="signatureEditing.signature_data" class="rounded-xl border border-slate-200 dark:border-slate-700 p-3"><p class="label">ลายเซ็นที่บันทึกไว้</p><img :src="signatureEditing.signature_data" alt="ลายเซ็นที่บันทึกไว้" class="bg-white rounded mx-auto h-24 max-w-full object-contain" /><p class="mt-2 text-xs text-slate-500 dark:text-slate-400">อัปเดต {{ fmtDateTime(signatureEditing.signature_updated_at) }}</p></div>
+      <div v-if="signatureEditing.signature_data" class="rounded-xl border border-slate-200 dark:border-slate-700 p-3"><p class="label">ลายเซ็นที่บันทึกไว้</p><SignatureImage :src="signatureEditing.signature_data" alt="ลายเซ็นที่บันทึกไว้" class="bg-white rounded mx-auto h-24 max-w-full object-contain" /><p class="mt-2 text-xs text-slate-500 dark:text-slate-400">อัปเดต {{ fmtDateTime(signatureEditing.signature_updated_at) }}</p></div>
       <div class="flex flex-wrap gap-3 text-sm"><label class="choice"><input v-model="signatureMode" type="radio" value="draw" :disabled="signatureBusy" /> วาดลายเซ็น</label><label class="choice"><input v-model="signatureMode" type="radio" value="upload" :disabled="signatureBusy" /> อัปโหลดรูป</label></div>
       <SignaturePad v-if="signatureMode === 'draw'" v-model="signatureData" />
-      <div v-else class="space-y-3"><label for="admin_signature_file" class="label">ไฟล์ PNG, JPG หรือ WebP (ไม่เกิน 8 MB)</label><input id="admin_signature_file" type="file" accept="image/png,image/jpeg,image/webp" class="input" :disabled="signatureBusy" @change="uploadSignature" /><p v-if="signatureLoading" class="text-sm text-slate-500 dark:text-slate-400">กำลังอ่านรูป...</p><img v-if="signatureData" :src="signatureData" alt="ตัวอย่างลายเซ็นใหม่" class="bg-white rounded mx-auto h-28 max-w-full object-contain" /></div>
+      <div v-else class="space-y-3"><label for="admin_signature_file" class="label">ไฟล์ PNG, JPG หรือ WebP (ไม่เกิน 8 MB)</label><input id="admin_signature_file" type="file" accept="image/png,image/jpeg,image/webp" class="input" :disabled="signatureBusy" @change="uploadSignature" /><p v-if="signatureLoading" class="text-sm text-slate-500 dark:text-slate-400">กำลังอ่านรูป...</p><SignatureImage v-if="signatureData" :src="signatureData" alt="ตัวอย่างลายเซ็นใหม่" class="bg-white rounded mx-auto h-28 max-w-full object-contain" /></div>
       <p v-if="signatureError" role="alert" class="field-error">{{ signatureError }}</p>
       <div class="flex flex-wrap gap-2"><button class="btn-primary" :disabled="signatureBusy || signatureLoading || !signatureData">{{ signatureBusy ? 'กำลังบันทึก...' : 'บันทึกลายเซ็น' }}</button><button v-if="signatureEditing.signature_data" type="button" class="btn-danger" :disabled="signatureBusy" @click="saveSignature(true)">ลบลายเซ็นประจำบัญชี</button></div>
     </form>

@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type AssetRow, type Paged } from '@/api'
 import Icon from '@/components/Icon.vue'
 import AssetImport from '@/components/AssetImport.vue'
+import DocumentPrint from '@/components/DocumentPrint.vue'
+import type { DocumentDefinition, ITDocument } from '@/documents'
+import { todayInput } from '@/format'
 import { meta, toast } from '@/store'
 
 const route = useRoute()
@@ -11,44 +14,85 @@ const router = useRouter()
 
 const q = (k: string) => (typeof route.query[k] === 'string' ? (route.query[k] as string) : '')
 const filters = reactive({ q: q('q'), category_id: q('category_id'), status: q('status'), company: q('company') })
-const page = ref(Number(q('page')) || 1)
-const result = ref<Paged<AssetRow> | null>(null)
-const loading = ref(false)
 const selected = ref<Set<number>>(new Set())
-const showImport = ref(false)
+// /admin/assets?import=1 (from the FM-IT-001 card in เอกสารฝ่าย IT) opens Import Excel directly.
+const showImport = ref(route.query.import === '1')
 
-function imported() {
-  selected.value = new Set()
-  if (page.value !== 1) page.value = 1
-  else load()
+/** One table per company (ATS / INNO), each split again into legacy Inventory.xlsx codes (INV-xxx) and the rest. */
+type CodeGroup = 'main' | 'inv'
+type Company = 'ATS' | 'INNO'
+interface Group {
+  key: string; company: Company; codeGroup: CodeGroup; title: string; note: string; pageKey: string
+  page: number; result: Paged<AssetRow> | null; loading: boolean; seq: number
 }
+const COMPANY_NAMES: Record<Company, string> = { ATS: 'บริษัท อัตถสาร จำกัด', INNO: 'บริษัท อัตถสาร อินโนเวชั่น จำกัด' }
+const group = (company: Company, codeGroup: CodeGroup, pageKey: string): Group => ({
+  key: `${company.toLowerCase()}-${codeGroup}`, company, codeGroup, pageKey,
+  title: codeGroup === 'inv' ? `อุปกรณ์รหัส INV — ${company}` : `ทะเบียนอุปกรณ์ — ${company}`,
+  note: `${COMPANY_NAMES[company]} · ${codeGroup === 'inv' ? 'รหัสขึ้นต้นด้วย INV-' : 'รหัสที่ไม่ขึ้นต้นด้วย INV'}`,
+  page: Number(q(pageKey)) || 1, result: null, loading: false, seq: 0,
+})
+const groups = reactive<Group[]>([
+  group('ATS', 'main', 'page'),
+  group('INNO', 'main', 'inno_page'),
+  group('ATS', 'inv', 'inv_page'),
+  group('INNO', 'inv', 'inno_inv_page'),
+])
+// The company filter hides the other company's tables instead of showing them empty.
+const visibleGroups = computed(() => groups.filter((g) => !filters.company || g.company === filters.company))
+const activeFilters = () => Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''))
 
-async function load() {
-  loading.value = true
+async function load(g: Group) {
+  const seq = ++g.seq
+  g.loading = true
   try {
-    result.value = await api.get<Paged<AssetRow>>('/admin/assets', { ...filters, page: page.value, per_page: 50 })
+    const r = await api.get<Paged<AssetRow>>('/admin/assets', { ...activeFilters(), company: g.company, code_group: g.codeGroup, page: g.page, per_page: 50 })
+    if (seq === g.seq) g.result = r
   } catch (e) {
-    toast((e as Error).message, 'error')
+    if (seq === g.seq) toast((e as Error).message, 'error')
   } finally {
-    loading.value = false
+    if (seq === g.seq) g.loading = false
   }
 }
 
+function syncQuery() {
+  const pages = Object.fromEntries(visibleGroups.value.filter((g) => g.page > 1).map((g) => [g.pageKey, String(g.page)]))
+  router.replace({ query: { ...activeFilters(), ...pages } })
+}
+
+function resetPages() {
+  for (const g of groups) g.page = 1
+}
+
 watch(
-  [filters, page],
+  filters,
   () => {
-    router.replace({ query: Object.fromEntries(Object.entries({ ...filters, page: page.value > 1 ? page.value : '' }).filter(([, v]) => v !== '')) })
-    load()
+    syncQuery()
+    visibleGroups.value.forEach(load)
   },
   { deep: true, immediate: true },
 )
+function setPage(g: Group, page: number) {
+  g.page = page
+  syncQuery()
+  load(g)
+}
+
+function imported() {
+  selected.value = new Set()
+  resetPages()
+  syncQuery()
+  visibleGroups.value.forEach(load)
+}
 
 let searchTimer: ReturnType<typeof setTimeout>
 function onSearch(e: Event) {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
-    filters.q = (e.target as HTMLInputElement).value
-    page.value = 1
+    const value = (e.target as HTMLInputElement).value
+    if (value === filters.q) return
+    resetPages()
+    filters.q = value
   }, 300)
 }
 
@@ -58,10 +102,11 @@ function toggle(id: number) {
   selected.value = s
 }
 
-const allOnPage = computed(() => !!result.value?.data.length && result.value.data.every((a) => selected.value.has(a.id)))
-function toggleAll() {
+const allOnPage = (g: Group) => !!g.result?.data.length && g.result.data.every((a) => selected.value.has(a.id))
+function toggleAll(g: Group) {
   const s = new Set(selected.value)
-  for (const a of result.value?.data ?? []) allOnPage.value ? s.delete(a.id) : s.add(a.id)
+  const all = allOnPage(g)
+  for (const a of g.result?.data ?? []) all ? s.delete(a.id) : s.add(a.id)
   selected.value = s
 }
 
@@ -70,8 +115,35 @@ function printQr(id?: number) {
     ? { ids: String(id), auto_print: '1' }
     : selected.value.size
       ? { ids: [...selected.value].join(',') }
-      : Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''))
+      : activeFilters()
   window.open(router.resolve({ name: 'qr-print', query }).href, '_blank', 'noopener')
+}
+
+/** Print one table as FM-IT-001 (current filters, every page) without creating a document record. */
+const fmForm = ref<DocumentDefinition | null>(null)
+const fmDocument = ref<ITDocument | null>(null)
+const fmPrint = ref<InstanceType<typeof DocumentPrint> | null>(null)
+const fmPrinting = ref('')
+async function printFm001(g: Group) {
+  if (fmPrinting.value) return
+  fmPrinting.value = g.key
+  try {
+    if (!fmForm.value) fmForm.value = (await api.get<{ forms: Record<string, DocumentDefinition> }>('/admin/document-forms')).forms['FM-IT-001']
+    const d = await api.get<{ data: ITDocument['data'] }>('/admin/document-prefill', { ...activeFilters(), form_code: 'FM-IT-001', company: g.company, code_group: g.codeGroup })
+    if (!d.data.rows.length) throw new Error('ไม่มีอุปกรณ์ในตารางนี้ตามตัวกรอง')
+    fmDocument.value = {
+      id: 0, document_no: '', form_code: 'FM-IT-001', title: g.codeGroup === 'inv' ? `${fmForm.value.title} (รหัส INV)` : fmForm.value.title,
+      document_date: todayInput(), company: COMPANY_NAMES[g.company], status: 'draft', version: 1, data: d.data,
+      source_note: null, updated_at: '', signatures: [], logs: [],
+    }
+    await nextTick()
+    await fmPrint.value?.prepare()
+    window.print()
+  } catch (e) {
+    toast((e as Error).message, 'error')
+  } finally {
+    fmPrinting.value = ''
+  }
 }
 
 const statusTone: Record<string, string> = {
@@ -80,10 +152,12 @@ const statusTone: Record<string, string> = {
   spare: 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300',
   retired: 'bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-400',
 }
-const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.total / result.value.per_page)) : 1)
+const totalPages = (g: Group) => (g.result ? Math.max(1, Math.ceil(g.result.total / g.result.per_page)) : 1)
+const grandTotal = computed(() => visibleGroups.value.every((g) => g.result) ? visibleGroups.value.reduce((n, g) => n + (g.result?.total ?? 0), 0) : null)
 </script>
 
 <template>
+  <div class="no-print">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <h1 class="text-2xl font-bold">ทะเบียนอุปกรณ์</h1>
     <div class="flex flex-wrap gap-2">
@@ -99,32 +173,44 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
       <Icon name="search" :size="16" class="absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
       <input :value="filters.q" class="input pl-9" placeholder="รหัส / รุ่น / Serial / ชื่อเครื่อง / ผู้ใช้ / หน่วยงาน" @input="onSearch" />
     </div>
-    <select v-model="filters.category_id" class="input" @change="page = 1">
+    <select v-model="filters.category_id" class="input" @change="resetPages">
       <option value="">ทุกประเภท</option>
       <option v-for="c in meta!.categories" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
     </select>
-    <select v-model="filters.status" class="input" @change="page = 1">
+    <select v-model="filters.status" class="input" @change="resetPages">
       <option value="">ทุกสถานะ</option>
       <option v-for="(label, k) in meta!.asset_statuses" :key="k" :value="k">{{ label }}</option>
     </select>
-    <select v-model="filters.company" class="input" @change="page = 1">
+    <select v-model="filters.company" class="input" @change="resetPages">
       <option value="">ทุกบริษัท</option>
       <option value="ATS">ATS</option>
       <option value="INNO">INNO</option>
     </select>
   </div>
 
-  <p v-if="selected.size" class="mt-3 flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-    เลือกไว้ {{ selected.size }} เครื่อง
-    <button class="font-medium text-brand-700 dark:text-brand-300" @click="selected = new Set()">ล้างที่เลือก</button>
+  <p class="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+    <span v-if="grandTotal !== null">รวมทั้งหมด {{ grandTotal }} เครื่อง</span>
+    <template v-if="selected.size">
+      <span>· เลือกไว้ {{ selected.size }} เครื่อง</span>
+      <button class="font-medium text-brand-700 dark:text-brand-300" @click="selected = new Set()">ล้างที่เลือก</button>
+    </template>
   </p>
 
-  <section class="card mt-4 overflow-hidden">
+  <section v-for="g in visibleGroups" :key="g.key" class="card mt-4 overflow-hidden" :aria-labelledby="`assets-${g.key}`">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700 px-4 py-3">
+      <div>
+        <h2 :id="`assets-${g.key}`" class="font-semibold">{{ g.title }} <span v-if="g.result" class="text-sm font-normal text-slate-500 dark:text-slate-400">({{ g.result.total }})</span></h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ g.note }}</p>
+      </div>
+      <button type="button" class="btn-secondary px-3 py-2 text-sm" :disabled="!!fmPrinting || !g.result?.total" :aria-label="`พิมพ์ FM-IT-001 ${g.title}`" @click="printFm001(g)">
+        <Icon name="printer" :size="16" /> {{ fmPrinting === g.key ? 'กำลังเตรียม...' : 'พิมพ์ FM-IT-001' }}
+      </button>
+    </div>
     <div class="table-wrap">
       <table class="table">
         <thead>
           <tr>
-            <th class="w-10"><input type="checkbox" class="size-4 accent-brand-700" :checked="allOnPage" aria-label="เลือกทั้งหน้า" @change="toggleAll" /></th>
+            <th class="w-10"><input type="checkbox" class="size-4 accent-brand-700" :checked="allOnPage(g)" :aria-label="`เลือกทั้งหน้า ${g.title}`" @change="toggleAll(g)" /></th>
             <th>รหัส</th>
             <th>ยี่ห้อ / รุ่น</th>
             <th>ผู้ใช้งาน</th>
@@ -133,8 +219,8 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
             <th class="w-28 text-right">QR</th>
           </tr>
         </thead>
-        <tbody :class="loading && 'opacity-50'">
-          <tr v-for="a in result?.data" :key="a.id" class="cursor-pointer" @click="router.push({ name: 'asset-detail', params: { id: a.id } })">
+        <tbody :class="g.loading && 'opacity-50'">
+          <tr v-for="a in g.result?.data" :key="a.id" class="cursor-pointer" @click="router.push({ name: 'asset-detail', params: { id: a.id } })">
             <td @click.stop><input type="checkbox" class="size-4 accent-brand-700" :checked="selected.has(a.id)" :aria-label="`เลือก ${a.asset_code}`" @change="toggle(a.id)" /></td>
             <td class="whitespace-nowrap">
               <RouterLink :to="{ name: 'asset-detail', params: { id: a.id } }" class="font-mono font-semibold text-brand-700 dark:text-brand-300" @click.stop>{{ a.asset_code }}</RouterLink>
@@ -159,20 +245,22 @@ const totalPages = () => (result.value ? Math.max(1, Math.ceil(result.value.tota
               </button>
             </td>
           </tr>
-          <tr v-if="result && !result.data.length">
+          <tr v-if="g.result && !g.result.data.length">
             <td colspan="7" class="py-12 text-center text-slate-400">ไม่พบอุปกรณ์</td>
           </tr>
         </tbody>
       </table>
     </div>
-    <div v-if="result" class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-4 py-3 text-sm">
-      <span class="text-slate-500 dark:text-slate-400">ทั้งหมด {{ result.total }} เครื่อง</span>
-      <div v-if="result.total > result.per_page" class="flex items-center gap-2">
-        <button class="btn-secondary px-3 py-1.5" :disabled="page <= 1" @click="page--">ก่อนหน้า</button>
-        <span>{{ page }} / {{ totalPages() }}</span>
-        <button class="btn-secondary px-3 py-1.5" :disabled="page >= totalPages()" @click="page++">ถัดไป</button>
+    <div v-if="g.result" class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-4 py-3 text-sm">
+      <span class="text-slate-500 dark:text-slate-400">ทั้งหมด {{ g.result.total }} เครื่อง</span>
+      <div v-if="g.result.total > g.result.per_page" class="flex items-center gap-2">
+        <button class="btn-secondary px-3 py-1.5" :disabled="g.page <= 1" @click="setPage(g, g.page - 1)">ก่อนหน้า</button>
+        <span>{{ g.page }} / {{ totalPages(g) }}</span>
+        <button class="btn-secondary px-3 py-1.5" :disabled="g.page >= totalPages(g)" @click="setPage(g, g.page + 1)">ถัดไป</button>
       </div>
     </div>
   </section>
   <AssetImport v-if="showImport" @close="showImport = false" @imported="imported" />
+  </div>
+  <DocumentPrint v-if="fmForm && fmDocument" ref="fmPrint" :document="fmDocument" :definition="fmForm" status-label="" />
 </template>

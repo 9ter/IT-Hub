@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DocumentField, DocumentValue } from '@/documents'
+import { meta } from '@/store'
 const props=defineProps<{field:DocumentField;modelValue:DocumentValue|undefined;disabled?:boolean;id?:string}>()
 const emit=defineEmits<{ 'update:modelValue':[value:DocumentValue] }>()
 const value=computed({get:()=>Array.isArray(props.modelValue)?'':(props.modelValue||''),set:v=>emit('update:modelValue',v)})
 const selected=computed(()=>Array.isArray(props.modelValue)?props.modelValue:[])
+/** A retired service action appears only on a document that already has it. */
+const multiOptions=computed(()=>Object.entries(props.field.options).filter(([key])=>props.field.key!=='actions'||!meta.value?.service_actions_retired?.includes(key)||selected.value.includes(key)))
 function toggle(key:string,checked:boolean){emit('update:modelValue',checked?[...selected.value,key]:selected.value.filter(k=>k!==key))}
 </script>
 <template>
   <div v-if="field.type==='multiselect'" class="grid gap-2 sm:grid-cols-2">
-    <label v-for="(label,key) in field.options" :key="key" class="choice"><input type="checkbox" :disabled="disabled" :checked="selected.includes(String(key))" @change="toggle(String(key),($event.target as HTMLInputElement).checked)" />{{label}}</label>
+    <label v-for="[key,label] in multiOptions" :key="key" class="choice"><input type="checkbox" :disabled="disabled" :checked="selected.includes(key)" @change="toggle(key,($event.target as HTMLInputElement).checked)" />{{label}}</label>
   </div>
   <select v-else-if="field.type==='select'" :id="id" v-model="value" :disabled="disabled" class="input"><option value="">— เลือก —</option><option v-for="(label,key) in field.options" :key="key" :value="key">{{label}}</option></select>
   <textarea v-else-if="field.type==='textarea'" :id="id" v-model="value" :disabled="disabled" class="input" rows="3" maxlength="12000" />

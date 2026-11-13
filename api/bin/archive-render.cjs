@@ -12,7 +12,11 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
   await page.route('**/*',async route=>{
    const url=new URL(route.request().url());if(url.origin!=='http://archive.invalid')return route.abort();
    const api=url.pathname.startsWith('/it-hub/api/')?url.pathname.slice('/it-hub/api'.length):null;
-   if(api){if(route.request().method()!=='GET')return route.abort();if(api===`/admin/tickets/${input.payload.ticket.id}`)return route.fulfill({json:input.payload.ticket});if(api==='/admin/admins'||api==='/approvers')return route.fulfill({json:[]});return route.abort()}
+   if(api){if(route.request().method()!=='GET')return route.abort();if(api===`/admin/tickets/${input.payload.ticket.id}`)return route.fulfill({json:input.payload.ticket});if(api==='/admin/admins'||api==='/approvers')return route.fulfill({json:[]});
+    if(api==='/companies')return input.companies?route.fulfill({json:input.companies}):route.abort();
+    const logo=/^\/companies\/(\d+)\/logo$/.exec(api),l=logo&&input.logos&&input.logos[logo[1]];
+    if(l&&/^image\/(png|jpeg|webp|gif)$/.test(l.mime))return route.fulfill({body:Buffer.from(l.data,'base64'),contentType:l.mime});
+    return route.abort()}
    const relative=decodeURIComponent(url.pathname).replace(/^\/it-hub\//,'');const file=path.resolve(root,relative);
    if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()||!fs.realpathSync(file).startsWith(root+path.sep))return route.abort();
    const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2','.woff':'font/woff'};

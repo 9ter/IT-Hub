@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SignatureImage from '@/components/SignatureImage.vue'
 import { computed,onMounted,onUnmounted,reactive,ref,watch } from 'vue'
 import { api,type Approver,type Ticket,type PurchaseFields,type PurchaseRole } from '@/api'
 import { fmtDateTime } from '@/format'
@@ -45,7 +46,7 @@ onUnmounted(()=>{
   window.removeEventListener('focus',refreshSignatures)
   document.removeEventListener('visibilitychange',refreshSignatures)
 })
-watch(()=>props.ticket.id,()=>{for(const key of keys)selected[key]=entry(key)?.employee_id||(key==='director'?props.ticket.default_completion_approver_id||'':'')},{immediate:true})
+watch(()=>props.ticket.id,()=>{for(const key of keys)selected[key]=entry(key)?.employee_id||props.ticket.purchase_default_approver_ids?.[key]||''},{immediate:true})
 async function perform(kind:string,role?:PurchaseRole){
   if(busy.value)return
   error.value='';operation.value=kind;emit('busy',true)
@@ -67,7 +68,7 @@ async function perform(kind:string,role?:PurchaseRole){
 <template>
   <section class="card space-y-3 p-5">
     <h2 class="font-semibold">ผู้รับเรื่อง (ฝ่ายเทคโนโลยีสารสนเทศ) · Admin IT Hub</h2>
-    <template v-if="ticket.receipt_signature"><img :src="ticket.receipt_signature.signature_data" alt="ลายเซ็นผู้รับเรื่อง IT" class="h-24 max-w-full rounded bg-white object-contain" /><p class="font-medium">{{ticket.receipt_signature.signer_name}}</p><p class="text-sm text-slate-500 dark:text-slate-400">ลงนามเมื่อ {{fmtDateTime(ticket.receipt_signature.signed_at)}}</p></template>
+    <template v-if="ticket.receipt_signature"><SignatureImage :src="ticket.receipt_signature.signature_data" alt="ลายเซ็นผู้รับเรื่อง IT" class="h-24 max-w-full rounded bg-white object-contain" /><p class="font-medium">{{ticket.receipt_signature.signer_name}}</p><p class="text-sm text-slate-500 dark:text-slate-400">ลงนามเมื่อ {{fmtDateTime(ticket.receipt_signature.signed_at)}}</p></template>
     <template v-else>
       <p class="text-sm text-slate-600 dark:text-slate-300">เมื่อกดรับเรื่องหรือเริ่มดำเนินการ ระบบจะเก็บลายเซ็นประจำบัญชีของ Admin ผู้กดไว้ในช่องผู้รับเรื่อง กดลงนามได้ทันทีโดยไม่ต้องกรอกผลดำเนินการ</p>
       <RouterLink to="/admin/admins" class="inline-block text-sm text-brand-700 dark:text-brand-300">{{ownSignatureAvailable?'จัดการลายเซ็นของฉัน':'เพิ่มลายเซ็นของฉันในหน้าผู้ดูแลระบบ'}}</RouterLink>
@@ -98,7 +99,7 @@ async function perform(kind:string,role?:PurchaseRole){
         <p v-else class="text-sm text-brand-700 dark:text-brand-300">{{{pending:'รอลงนาม',approved:'ลงนามแล้ว',rejected:'ไม่รับรองเอกสาร'}[entry(role.key)!.status]}}</p>
         <p v-if="entry(role.key)!.mail_error" class="field-error">{{entry(role.key)!.mail_error}}</p>
         <p v-else-if="entry(role.key)!.status==='pending'&&entry(role.key)!.mail_sent_at" class="text-xs text-slate-500 dark:text-slate-400">ส่งอีเมล {{fmtDateTime(entry(role.key)!.mail_sent_at)}} · หมดอายุ {{fmtDateTime(entry(role.key)!.expires_at)}}</p>
-        <img v-if="entry(role.key)!.current&&entry(role.key)!.signature_data" :src="entry(role.key)!.signature_data!" :alt="`ลายเซ็น ${role.label}`" class="h-20 max-w-full rounded bg-white object-contain" />
+        <SignatureImage v-if="entry(role.key)!.current&&entry(role.key)!.signature_data" :src="entry(role.key)!.signature_data!" :alt="`ลายเซ็น ${role.label}`" class="h-20 max-w-full rounded bg-white object-contain" />
         <p v-if="entry(role.key)!.signed_at" class="text-xs text-slate-500 dark:text-slate-400">ลงนาม {{fmtDateTime(entry(role.key)!.signed_at)}}</p><p v-if="entry(role.key)!.decision_note" class="whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{{entry(role.key)!.decision_note}}</p>
       </template>
       <template v-if="!entry(role.key)?.current||entry(role.key)?.status!=='approved'||dirty">
