@@ -31,3 +31,11 @@ export function backupPrintDocument(year: number, server: string, rows: BackupRo
   }
 }
 
+
+/** Saved Synology Hyper Backup connection (no password). */
+export interface HyperBackupConnection {
+  revision: string; host: string; port: number; username: string; fingerprint: string; task_id: number; task_name: string
+  defaults: { server: string; dataset: string; source: string | null; device: string | null; folder: string | null }
+  verified_at: string; last_sync: { at: string; added: number; message: string; ok: boolean } | null
+}
+export interface HyperBackupTask { task_id: number; name: string; state: string; last_bkp_time: string; last_bkp_result: string; next_bkp_time: string }

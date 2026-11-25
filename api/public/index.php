@@ -7,6 +7,7 @@ require __DIR__ . '/../src/asset_import.php';
 require __DIR__ . '/../src/document_import.php';
 require __DIR__ . '/../src/inspections.php';
 require __DIR__ . '/../src/backups.php';
+require __DIR__ . '/../src/hyperbackup.php';
 require __DIR__ . '/../src/admin.php';
 
 header('X-Content-Type-Options: nosniff');
@@ -77,6 +78,11 @@ $r->get('/admin/borrow-requests', function () { require_admin(); return borrow_p
 $r->get('/admin/borrow-items', function () { require_admin(); return borrow_items($_GET); });
 // FM-IT-002 ใบตรวจสอบโครงสร้างพื้นฐาน (living yearly checklist)
 $r->get('/admin/backups', function () { require_admin(); return backup_get($_GET); });
+$r->get('/admin/backups/hyperbackup', function () { require_admin(); return hb_status(); });
+$r->post('/admin/backups/hyperbackup/test', function () { require_admin(); return hb_test(request_body()); });
+$r->post('/admin/backups/hyperbackup/sync', fn() => hb_sync((int)require_admin()['id']));
+$r->post('/admin/backups/hyperbackup/disconnect', function () { require_admin(); return hb_disconnect(request_body()); });
+$r->post('/admin/backups/hyperbackup', fn() => hb_save(request_body(), require_admin()));
 $r->post('/admin/backups/import/preview', fn() => backup_import_upload($_FILES['file'] ?? [], require_admin()));
 $r->post('/admin/backups/import/apply', fn() => backup_import_upload($_FILES['file'] ?? [], require_admin(), true));
 $r->post('/admin/backups', fn() => backup_create(request_body(), require_admin()));

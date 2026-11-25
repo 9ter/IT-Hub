@@ -4,17 +4,33 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '@/api'
 import { fmtDateTime, fmtFormDate, todayInput } from '@/format'
 import { toast } from '@/store'
-import { backupPrintDocument, type BackupRow, type BackupSuggestKey, type BackupYear } from '@/backups'
+import { backupPrintDocument, type BackupRow, type BackupSuggestKey, type BackupYear, type HyperBackupConnection } from '@/backups'
 import Icon from '@/components/Icon.vue'
 import Modal from '@/components/Modal.vue'
 import DocumentPrint from '@/components/DocumentPrint.vue'
 import BackupImport from '@/components/BackupImport.vue'
+import HyperBackupSettings from '@/components/HyperBackupSettings.vue'
 
 const route = useRoute(), router = useRouter()
 const data = ref<BackupYear | null>(null)
 const loading = ref(false), error = ref(''), q = ref(''), server = ref('')
 const printing = ref(false), printRef = ref<InstanceType<typeof DocumentPrint> | null>(null)
 const importOpen = ref(false)
+// Synology Hyper Backup connection (read-only); null = not connected
+const hb = ref<HyperBackupConnection | null>(null), hbOpen = ref(false), hbLoaded = ref(false)
+async function loadHb() { try { hb.value = (await api.get<{ connection: HyperBackupConnection | null }>('/admin/backups/hyperbackup')).connection } catch { hb.value = null } finally { hbLoaded.value = true } }
+const syncing = ref(false)
+async function syncNow() {
+  if (syncing.value) return
+  syncing.value = true
+  try {
+    const r = await api.post<{ added: number; message: string; dates: string[] }>('/admin/backups/hyperbackup/sync')
+    toast(r.added ? `เพิ่มจาก Hyper Backup ${r.added} แถว (${r.dates.map(fmtFormDate).join(', ')})` : 'Hyper Backup: ไม่มีรายการใหม่')
+    await Promise.all([loadHb(), r.added ? load(data.value?.year) : Promise.resolve()])
+  } catch (e) { toast((e as Error).message, 'error'); await loadHb() }
+  finally { syncing.value = false }
+}
+function hbSaved(c: HyperBackupConnection | null) { hb.value = c; hbOpen.value = false; toast(c ? `เชื่อมต่อ Hyper Backup งาน “${c.task_name}” แล้ว` : 'ยกเลิกการเชื่อมต่อ Hyper Backup แล้ว') }
 
 const yearOptions = computed(() => {
   if (!data.value) return []
@@ -117,7 +133,7 @@ const fields: { key: FormKey; label: string; max: number; suggest?: BackupSugges
 
 const importOpenRequested = route.query.import === '1'
 onMounted(async () => {
-  await load(typeof route.query.year === 'string' ? route.query.year : undefined)
+  await Promise.all([load(typeof route.query.year === 'string' ? route.query.year : undefined), loadHb()])
   if (importOpenRequested) importOpen.value = true
 })
 </script>
@@ -137,6 +153,18 @@ onMounted(async () => {
         <button class="btn-primary" :disabled="!data" @click="openForm()"><Icon name="plus" :size="16" /> บันทึกการ Backup</button>
       </div>
     </div>
+
+    <section v-if="hbLoaded" class="card mt-4 flex flex-wrap items-center gap-3 p-4">
+      <Icon name="server" :size="20" class="text-brand-700 dark:text-brand-300" />
+      <div class="min-w-0 flex-1 text-sm">
+        <p class="font-semibold">Synology Hyper Backup</p>
+        <p v-if="hb" class="text-slate-500 dark:text-slate-400">เชื่อมต่อแล้ว · งาน “{{ hb.task_name }}” ที่ {{ hb.host }}<template v-if="hb.last_sync"> · ดึงข้อมูลล่าสุด {{ fmtDateTime(hb.last_sync.at) }} <span :class="hb.last_sync.ok ? '' : 'text-red-600 dark:text-red-400'">({{ hb.last_sync.message }})</span></template></p>
+        <p v-if="hb" class="text-xs text-slate-500 dark:text-slate-400">ระบบตรวจทุกเช้า 06:00 และเพิ่มการ Backup วันศุกร์อัตโนมัติ (จัดทำ = ระบบอัตโนมัติ, รับทราบ ให้ผู้ตรวจกรอก) ขนาดไฟล์อ่านได้เฉพาะเช้าวันที่ Backup</p>
+        <p v-else class="text-slate-500 dark:text-slate-400">ยังไม่เชื่อมต่อ — เชื่อมต่อเพื่อให้ระบบอ่านผล Backup จาก NAS และเพิ่มลงรายงานอัตโนมัติ</p>
+      </div>
+      <button v-if="hb" class="btn-secondary" :disabled="syncing" @click="syncNow"><Icon name="refresh" :size="16" /> {{ syncing ? 'กำลังดึง...' : 'ดึงข้อมูลตอนนี้' }}</button>
+      <button class="btn-secondary" @click="hbOpen = true">{{ hb ? 'ตั้งค่าการเชื่อมต่อ' : 'เชื่อมต่อ Hyper Backup' }}</button>
+    </section>
 
     <p v-if="error" role="alert" class="mt-4 rounded-xl bg-red-50 dark:bg-red-900/40 p-4 text-red-700 dark:text-red-300">{{ error }}</p>
     <p v-if="loading && !data" class="mt-6 text-slate-500">กำลังโหลด...</p>
@@ -209,6 +237,7 @@ onMounted(async () => {
     <div class="mt-4 flex justify-end gap-2"><button class="btn-secondary" :disabled="deleteBusy" @click="deleting = null">ยกเลิก</button><button class="btn-danger" :disabled="deleteBusy" @click="confirmDelete">{{ deleteBusy ? 'กำลังลบ...' : 'ลบบันทึก' }}</button></div>
   </Modal>
 
+  <HyperBackupSettings v-if="hbOpen" :connection="hb" :last="data?.last ?? null" @close="hbOpen = false" @saved="hbSaved" />
   <BackupImport v-if="importOpen" @close="importOpen = false" @imported="imported" />
   <DocumentPrint v-if="data && printDocument" ref="printRef" :key="`${data.year}-${printServer}`" :document="printDocument" :definition="data.form" status-label="" />
 </template>
