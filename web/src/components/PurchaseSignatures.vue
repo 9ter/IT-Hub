@@ -16,7 +16,8 @@ const headBlocked=computed(()=>!!props.ticket.approval&&props.ticket.approval.st
 const available=computed(()=>!headBlocked.value&&!['rejected','cancelled'].includes(props.ticket.status))
 const busy=computed(()=>props.busy||!!operation.value)
 const normalize=(v:PurchaseFields|undefined)=>Object.fromEntries(['vendor','vendor_phone','quotation','quotation_date','amount','vat'].map(k=>[k,(v?.[k as keyof PurchaseFields]??'').toString().trim()]))
-const dirty=computed(()=>JSON.stringify(normalize(fields.value))!==JSON.stringify(normalize(props.ticket.purchase_fields))||props.resolution.trim()!==(props.ticket.resolution||''))
+// The work result is not part of what the three signers attest to, so typing it does not call for new signatures.
+const dirty=computed(()=>JSON.stringify(normalize(fields.value))!==JSON.stringify(normalize(props.ticket.purchase_fields)))
 const entry=(role:PurchaseRole)=>props.ticket.purchase_approvals?.[role]
 const waitingForSignature=computed(()=>available.value&&keys.some(key=>entry(key)?.current&&entry(key)?.status==='pending'))
 const checking=ref(false),refreshError=ref('')
@@ -77,7 +78,7 @@ async function perform(kind:string,role?:PurchaseRole){
   </section>
   <section class="card space-y-4 p-5">
     <h2 class="font-semibold">ข้อมูลจัดซื้อและลายเซ็นเพิ่มเติม FM-IT-007</h2>
-    <p class="rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950/50 dark:text-blue-100">IT เลือกผู้ลงนามและส่งอีเมลได้แยกกันทั้ง 3 ตำแหน่ง ปิดงานได้โดยไม่ต้องรอลายเซ็นครบ และผู้รับลงนามต่อหลังปิดงานได้</p>
+    <p class="rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950/50 dark:text-blue-100">IT เลือกผู้ลงนามและส่งอีเมลได้แยกกันทั้ง 3 ตำแหน่ง ปิดงานได้โดยไม่ต้องรอลายเซ็นครบ และผู้รับลงนามต่อหลังปิดงานได้ เมื่อกด “เริ่มดำเนินการ” ระบบจะส่งอีเมลขอลงนามถึง ผอ./ผจก. ฝ่ายสนับสนุนและติดตั้ง และผู้ช่วยกรรมการผู้จัดการ (ผู้รับเริ่มต้น) ให้อัตโนมัติ เฉพาะตำแหน่งที่ยังไม่เคยส่ง</p>
     <div class="grid gap-3 sm:grid-cols-2">
       <div><label class="label" for="purchase_vendor">ซื้อจากบริษัท / ร้าน</label><input id="purchase_vendor" v-model="fields.vendor" class="input" maxlength="200" :disabled="busy||!available" /></div>
       <div><label class="label" for="purchase_vendor_phone">โทรศัพท์ผู้ขาย</label><input id="purchase_vendor_phone" v-model="fields.vendor_phone" class="input" maxlength="50" :disabled="busy||!available" /></div>
@@ -86,7 +87,7 @@ async function perform(kind:string,role?:PurchaseRole){
       <div><label class="label" for="purchase_amount">รวมเป็นเงิน (บาท)</label><input id="purchase_amount" v-model="fields.amount" type="text" inputmode="decimal" class="input" :disabled="busy||!available" /></div>
       <div><label class="label" for="purchase_vat">VAT</label><select id="purchase_vat" v-model="fields.vat" class="input" :disabled="busy||!available"><option value="">ยังไม่ระบุ</option><option value="excluded">ราคาไม่รวม VAT</option><option value="included">ราคารวม VAT</option></select></div>
     </div>
-    <p class="text-xs text-slate-500 dark:text-slate-400">กดบันทึกใบงานหรือส่งขอลายเซ็นเพื่อเก็บข้อมูลนี้ การแก้ข้อมูลจัดซื้อหรือผลดำเนินการจะต้องขอลายเซ็นใหม่สำหรับฉบับที่แก้ไข</p>
+    <p class="text-xs text-slate-500 dark:text-slate-400">กดบันทึกใบงานหรือส่งขอลายเซ็นเพื่อเก็บข้อมูลนี้ การแก้ข้อมูลจัดซื้อจะต้องขอลายเซ็นใหม่สำหรับฉบับที่แก้ไข ส่วนการกรอกผลการดำเนินการหรือปิดงานไม่กระทบลายเซ็นที่ลงไว้แล้ว</p>
     <p v-if="headBlocked" class="text-sm text-amber-700 dark:text-amber-200">รอผู้มีอำนาจต้นสังกัดอนุมัติก่อนส่งอีก 3 ลายเซ็น</p>
     <div v-for="role in roles" :key="role.key" class="space-y-2 border-t border-slate-200 pt-4 dark:border-slate-700">
       <h3 class="font-medium">{{role.label}}</h3>

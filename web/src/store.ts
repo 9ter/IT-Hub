@@ -82,8 +82,8 @@ export function saveRequester(info: RequesterInfo) {
 // ---------- แจ้งเตือนมุมจอ ----------
 export const toasts = ref<{ id: number; text: string; kind: 'ok' | 'error' }[]>([])
 let toastId = 0
-export function toast(text: string, kind: 'ok' | 'error' = 'ok') {
+export function toast(text: string, kind: 'ok' | 'error' = 'ok', ms = 3500) {
   const id = ++toastId
   toasts.value.push({ id, text, kind })
-  setTimeout(() => (toasts.value = toasts.value.filter((t) => t.id !== id)), 3500)
+  setTimeout(() => (toasts.value = toasts.value.filter((t) => t.id !== id)), ms)
 }

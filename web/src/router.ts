@@ -39,6 +39,7 @@ const router = createRouter({
         { path: 'documents', name: 'documents', component: () => import('./views/admin/Documents.vue') },
         { path: 'borrows', name: 'borrow-records', component: () => import('./views/admin/Documents.vue') },
         { path: 'inspections', name: 'inspections', component: () => import('./views/admin/Inspections.vue') },
+        { path: 'backups', name: 'backups', component: () => import('./views/admin/Backups.vue') },
         { path: 'borrows/items', name: 'borrow-items', component: () => import('./views/admin/BorrowItems.vue') },
         { path: 'documents/new', name: 'document-new', component: () => import('./views/admin/DocumentDetail.vue') },
         { path: 'documents/:id', name: 'document-detail', component: () => import('./views/admin/DocumentDetail.vue') },

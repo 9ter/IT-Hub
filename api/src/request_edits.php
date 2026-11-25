@@ -56,14 +56,16 @@ function request_edit_history(int $id): array
     $s->execute([$id]);return $s->fetchAll();
 }
 
-/** Only explicitly audited request corrections may bridge original signing snapshots. */
+/** Follows audited request edits made after the approval was sent; the work result is ignored on both sides. */
 function request_edit_preserves_approval(array $approval,array $ticket): bool
 {
-    $s=db()->prepare('SELECT before_snapshot,after_snapshot FROM ticket_request_edits WHERE ticket_id=? AND work_revision=? ORDER BY id');
-    $s->execute([$ticket['ticket_id']??$ticket['id'],$ticket['completion_revision']]);
-    $snapshot=$approval['resolution_snapshot'];
-    foreach($s->fetchAll() as $edit) if($edit['before_snapshot']===$snapshot)$snapshot=$edit['after_snapshot'];
-    return $snapshot===purchase_snapshot($ticket);
+    $snapshot=purchase_signoff_content((string)$approval['resolution_snapshot']);
+    $current=purchase_signoff_content(purchase_snapshot($ticket));
+    if($snapshot===$current)return true;
+    $s=db()->prepare('SELECT before_snapshot,after_snapshot FROM ticket_request_edits WHERE ticket_id=? AND work_revision>=? ORDER BY id');
+    $s->execute([$ticket['ticket_id']??$ticket['id'],$approval['work_revision']]);
+    foreach($s->fetchAll() as $edit) if(purchase_signoff_content($edit['before_snapshot'])===$snapshot)$snapshot=purchase_signoff_content($edit['after_snapshot']);
+    return $snapshot===$current;
 }
 
 /** Caller holds the ticket lock. Identity, workflow, procurement and signatures cannot be edited here. */

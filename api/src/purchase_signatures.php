@@ -52,11 +52,21 @@ function purchase_snapshot(array $ticket): string
         'request'=>$request,'procurement'=>purchase_fields($ticket),'resolution'=>$ticket['resolution']],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 }
 
+/** What the three purchase signers attest to: request + procurement data. The IT work result is excluded,
+ *  because IT normally writes it when closing — after the signers have already signed. */
+function purchase_signoff_content(string $snapshot): string
+{
+    $data=json_decode($snapshot,true);
+    if(!is_array($data))return $snapshot;
+    unset($data['resolution']);
+    return json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+}
+
 function purchase_approval_matches(?array $approval,array $ticket): bool
 {
     return $approval!==null && $ticket['type']==='purchase' && purchase_stage($approval['stage'])
-        && (int)$approval['work_revision']===(int)$ticket['completion_revision']
-        && ($approval['resolution_snapshot']===purchase_snapshot($ticket) || request_edit_preserves_approval($approval,$ticket));
+        && (int)$approval['work_revision']<=(int)$ticket['completion_revision']
+        && request_edit_preserves_approval($approval,$ticket);
 }
 
 function purchase_approval_check(array $approval,array $ticket): void
@@ -151,4 +161,38 @@ function purchase_signature_request(int $id,array $body,array $actor): array
     archive_enqueue($id);
     approval_send($id,(bool)$resend,(int)$employee['id'],$stage);
     return ticket_admin($id);
+}
+
+/** Roles e-mailed automatically when IT starts work on a purchase ticket (default recipients only). */
+const PURCHASE_AUTO_REQUEST_ROLES = ['director','md'];
+
+/**
+ * Called inside update_ticket's transaction with the ticket locked, when the status changes to in_progress.
+ * Creates a request row only for a role that has never been requested; anything already sent, signed or
+ * rejected stays under IT's manual control. Returns the stages to e-mail after commit.
+ */
+function purchase_auto_request_rows(array $ticket,array $admin): array
+{
+    if($ticket['type']!=='purchase')return [];
+    $head=approval_for_ticket((int)$ticket['id']);if($head && $head['status']!=='approved')return [];
+    $defaults=purchase_default_approver_ids();$stages=[];
+    foreach(PURCHASE_AUTO_REQUEST_ROLES as $role){
+        $stage=PURCHASE_SIGNING_ROLES[$role]['stage'];
+        if(approval_for_ticket((int)$ticket['id'],$stage) || !($defaults[$role]??null))continue;
+        $s=db()->prepare('SELECT * FROM employees WHERE id=? AND is_active=1 AND can_approve=1');$s->execute([$defaults[$role]]);$e=$s->fetch();
+        if(!$e || !filter_var($e['email'],FILTER_VALIDATE_EMAIL))continue;
+        db()->prepare("INSERT INTO ticket_approvals(ticket_id,stage,attempt,work_revision,resolution_snapshot,employee_id,approver_name,approver_email,approver_department,approver_company) VALUES(?,?,1,?,?,?,?,?,?,?)")
+            ->execute([$ticket['id'],$stage,$ticket['completion_revision'],purchase_snapshot($ticket),$e['id'],$e['full_name'],$e['email'],$e['department'],$e['company']]);
+        db()->prepare('INSERT INTO ticket_logs(ticket_id,admin_id,note,is_public) VALUES(?,?,?,0)')->execute([$ticket['id'],$admin['id'],'เริ่มดำเนินการ: ระบบขอ '.PURCHASE_SIGNING_ROLES[$role]['label'].' ลงนามเอกสารจัดซื้ออัตโนมัติ']);
+        $stages[]=$stage;
+    }
+    return $stages;
+}
+
+/** After commit: a mail failure is recorded on the row (IT can resend) and never undoes the status change. */
+function purchase_auto_request_send(int $id,array $stages): void
+{
+    foreach($stages as $stage){
+        try{approval_send($id,false,null,$stage);}catch(Throwable $e){}
+    }
 }

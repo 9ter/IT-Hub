@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { api, ApiError, photoUrl, type AdminRow, type Ticket, type TicketStatus, type Approver, type PurchaseFields, type BorrowItem, type ArchiveStatus } from '@/api'
+import { api, ApiError, photoUrl, type SignatureNotice, type AdminRow, type Ticket, type TicketStatus, type Approver, type PurchaseFields, type BorrowItem, type ArchiveStatus } from '@/api'
 import Icon from '@/components/Icon.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ServiceRequestPrint from '@/components/ServiceRequestPrint.vue'
@@ -149,9 +149,15 @@ watch(
 
 // มีผู้ลงนามใบนี้ขณะเปิดหน้าค้างไว้ (กระดิ่งแจ้งเข้ามา) → โหลดข้อมูลใหม่โดยไม่ทิ้งข้อความที่กำลังแก้ แล้วถือว่าเห็นแล้ว
 const signedHere = computed(() => signedNotices.value.filter((n) => n.ticket_id === props.id).map((n) => n.id).join(','))
+// ลายเซ็นที่เข้ามาระหว่างเปิดหน้านี้ถูกมาร์คอ่านทันที ตัวเลขบนกระดิ่งจึงไม่ค้าง → แสดงแถบนี้ค้างไว้จนกว่าจะกดปิด
+const arrivedSigned = ref<SignatureNotice[]>([])
+watch(() => props.id, () => { arrivedSigned.value = [] })
 watch(signedHere, async (ids) => {
   const id = props.id
   if (!ids || ticket.value?.id !== id) return
+  const seen = new Set(arrivedSigned.value.map((n) => n.id))
+  const arrived = signedNotices.value.filter((n) => n.ticket_id === id && !seen.has(n.id))
+  arrivedSigned.value = [...arrived, ...arrivedSigned.value]
   try {
     const updated = await api.get<Ticket>(`/admin/tickets/${id}`)
     if (props.id === id && ticket.value?.id === id) applyPurchaseUpdate(updated, true)
@@ -178,8 +184,15 @@ async function save(overrides: Partial<typeof f> = {}) {
       note_public: f.note_public,
       ...(ticket.value?.type==='purchase'?{purchase_fields:f.purchase_fields,work_revision:ticket.value.completion_revision}:{}),
     }
-    fill(await api.patch<Ticket>(`/admin/tickets/${props.id}`, body))
-    toast('บันทึกแล้ว')
+    const before=ticket.value?.purchase_approvals
+    const updated=await api.patch<Ticket>(`/admin/tickets/${props.id}`, body)
+    fill(updated)
+    // Starting work on a purchase e-mails the default ผอ./ผจก. and ผู้ช่วยกรรมการผู้จัดการ automatically.
+    const auto=(['director','md'] as const).filter(r=>!before?.[r]&&updated.purchase_approvals?.[r]).map(r=>updated.purchase_approvals![r])
+    if(auto.length){
+      const failed=auto.filter(a=>a!.mail_status!=='sent')
+      toast(failed.length?'บันทึกแล้ว แต่ส่งอีเมลขอลงนามบางตำแหน่งไม่สำเร็จ กรุณากดส่งใหม่ในส่วนลายเซ็นจัดซื้อ':`บันทึกแล้ว · ส่งอีเมลขอลงนามอัตโนมัติถึง ${auto.map(a=>a!.approver_name).join(', ')}`,failed.length?'error':'ok',6000)
+    } else toast('บันทึกแล้ว')
   } catch (e) {
     if (e instanceof ApiError) errors.value = e.errors
     toast((e as Error).message, 'error')
@@ -313,6 +326,16 @@ const signatures = computed(() =>
         <RouterLink v-if="ticket.type!=='borrow'" :to="{name:'document-new',query:{form:meta?.ticket_types[ticket.type].form,ticket:String(ticket.id)}}" class="btn-secondary">จัดทำเอกสาร FM-IT</RouterLink>
         <RouterLink v-else-if="ticket.borrow_approval?.document_id" :to="{name:'document-detail',params:{id:ticket.borrow_approval.document_id}}" class="btn-secondary">เปิดบันทึก / พิมพ์ FM-IT-008</RouterLink>
       </div>
+    </div>
+
+    <div v-if="arrivedSigned.length" role="status" class="no-print mt-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm dark:border-emerald-800 dark:bg-emerald-900/30">
+      <Icon name="bell" :size="18" class="mt-0.5 shrink-0 text-emerald-700 dark:text-emerald-300" />
+      <ul class="min-w-0 flex-1 space-y-1">
+        <li v-for="n in arrivedSigned" :key="n.id" :class="n.status==='approved'?'text-emerald-800 dark:text-emerald-200':'text-red-700 dark:text-red-300'">
+          <span class="font-semibold">{{ n.approver_name }}</span> ({{ n.role }}) {{ n.status==='approved'?'ลงนามแล้ว':'ไม่อนุมัติ' }} · {{ fmtDateTime(n.signed_at) }}
+        </li>
+      </ul>
+      <button type="button" class="btn-ghost -m-1 shrink-0 p-1" aria-label="ปิดการแจ้งเตือนลงนาม" @click="arrivedSigned=[]"><Icon name="x" :size="16" /></button>
     </div>
 
     <div class="mt-6 grid gap-6 lg:grid-cols-3 no-print">

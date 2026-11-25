@@ -333,6 +333,7 @@ function update_ticket(int $id, array $body, array $admin): array
         }
         if ($statusChanged && $newStatus === 'done') it_signature_capture([...$current,...$changes],$admin);
         if($statusChanged && in_array($newStatus,['accepted','in_progress','waiting','done'],true) && $ticket['type']==='purchase')receipt_signature_capture([...$current,...$changes],$admin);
+        $autoSignStages=$statusChanged && $newStatus==='in_progress' && $ticket['type']==='purchase'?purchase_auto_request_rows([...$current,...$changes],$admin):[];
         if ($statusChanged || $note !== null) {
             $pdo->prepare('INSERT INTO ticket_logs (ticket_id, admin_id, from_status, to_status, note, is_public) VALUES (?, ?, ?, ?, ?, ?)')
                 ->execute([$id, $admin['id'], $statusChanged ? $ticket['status'] : null, $statusChanged ? $newStatus : null,
@@ -357,6 +358,7 @@ function update_ticket(int $id, array $body, array $admin): array
         $pdo->rollBack();
         throw $e;
     }
+    if ($autoSignStages) purchase_auto_request_send($id,$autoSignStages);
 
     return ticket_admin($id);
 }

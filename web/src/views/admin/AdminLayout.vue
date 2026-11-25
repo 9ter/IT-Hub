@@ -20,6 +20,7 @@ const nav = [
   { to: '/admin/documents', label: 'เอกสารฝ่าย IT', icon: 'list' },
   { to: '/admin/inspections', label: 'ตรวจสอบโครงสร้างพื้นฐาน', icon: 'check' },
   { to: '/admin/borrows', label: 'บันทึกเบิก–ยืมอุปกรณ์', icon: 'list' },
+  { to: '/admin/backups', label: 'รายงาน Backup Server', icon: 'server' },
   { to: '/admin/employees', label: 'ข้อมูลพนักงาน', icon: 'users' },
   { to: '/admin/admins', label: 'ผู้ดูแลระบบ', icon: 'users' },
   { to: '/admin/nas', label: 'Map NAS', icon: 'server' },

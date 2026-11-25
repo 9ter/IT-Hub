@@ -140,7 +140,7 @@ async function refreshSigned() {
         if (soundEnabled.value) playChime()
         const n = fresh[0]
         const more = fresh.length > 1 ? ` และอีก ${fresh.length - 1} รายการ` : ''
-        toast(`${n.approver_name} ${n.status === 'approved' ? 'ลงนามแล้ว' : 'ไม่อนุมัติ'} · ${n.ticket_no}${more}`, n.status === 'approved' ? 'ok' : 'error')
+        toast(`${n.approver_name} ${n.status === 'approved' ? 'ลงนามแล้ว' : 'ไม่อนุมัติ'} · ${n.ticket_no}${more}`, n.status === 'approved' ? 'ok' : 'error', 10000)
       }
     } else if (newestSigned === null && maxKey) {
       // โหลดครั้งแรกไม่ส่งเสียงสำหรับลายเซ็นที่ค้างอยู่ก่อนแล้ว
